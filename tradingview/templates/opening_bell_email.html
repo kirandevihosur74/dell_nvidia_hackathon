@@ -192,6 +192,40 @@
             </div>
             {% endif %}
 
+            <!-- MARKET-MOVING NEWS (local intelligence) -->
+            {% if news_intel %}
+            {% set ns.n = ns.n + 1 %}
+            <div style="font-size:13px;font-style:italic;color:#6b6b6b;margin:30px 0 4px;">{{ ns.n }}. Market-Moving News</div>
+            <div style="border-bottom:1px solid #d9d9d9;margin-bottom:12px;"></div>
+            {% for s in news_intel %}
+            {% set mc = '#b91c1c' if s.magnitude == 'high' else ('#b45309' if s.magnitude == 'medium' else '#64748b') %}
+            {% set mb = '#fde2e2' if s.magnitude == 'high' else ('#fdf0d9' if s.magnitude == 'medium' else '#eef2f7') %}
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:12px;"><tr>
+              <td valign="top" width="58" style="padding:2px 12px 2px 0;">
+                <span style="display:inline-block;font-size:10px;font-weight:700;letter-spacing:0.5px;padding:3px 7px;border-radius:3px;background:{{ mb }};color:{{ mc }};">{{ s.magnitude|upper }}</span>
+              </td>
+              <td valign="top">
+                <div style="font-size:14px;font-weight:700;color:#1a1a1a;line-height:1.45;">
+                  <span style="color:{{ '#15803d' if s.bullish else '#b91c1c' }};">{{ ('&#9650;' if s.bullish else '&#9660;') | safe }}</span>
+                  {{ s.one_liner }}
+                </div>
+                <div style="font-size:11.5px;color:#6b6b6b;margin-top:3px;">
+                  {% if s.tickers %}<strong style="color:#1a1a1a;">{{ s.tickers | join(', ') }}</strong>{% if s.sector_impact %} &middot; {% endif %}{% endif %}{% if s.sector_impact %}{{ s.sector_impact }}{% endif %} &middot; <span style="font-style:italic;">{{ s.source }}</span>
+                </div>
+                {% if s.bull or s.bear %}
+                <div style="font-size:11.5px;color:#5b5b5b;margin-top:4px;line-height:1.45;">
+                  {% if s.bull %}<span style="color:#15803d;font-weight:700;">Bull:</span> {{ s.bull }}{% endif %}
+                  {% if s.bear %}<br><span style="color:#b91c1c;font-weight:700;">Bear:</span> {{ s.bear }}{% endif %}
+                </div>
+                {% endif %}
+              </td>
+            </tr></table>
+            {% endfor %}
+            <div style="font-size:11px;font-style:italic;color:#9a9488;margin-top:2px;">
+              Local news-intelligence pipeline (GDELT &middot; RSS &middot; SEC EDGAR &rarr; FinBERT &rarr; on-prem LLM). Magnitude &amp; impact are model estimates.
+            </div>
+            {% endif %}
+
             <!-- 6. ON THE RADAR -->
             {% if radar %}
             {% set ns.n = ns.n + 1 %}

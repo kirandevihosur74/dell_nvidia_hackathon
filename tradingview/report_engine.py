@@ -992,7 +992,7 @@ def fetch_radar():
     return items[:6]
 
 
-def _opening_data_context(futures, overnight, gainers, losers, glance, radar):
+def _opening_data_context(futures, overnight, gainers, losers, glance, radar, news=None):
     L = ["FUTURES: " + " | ".join(f"{f['name']} {fmt_pct(f.get('change_pct'))}" for f in futures if f.get("ok"))]
     if overnight:
         L.append("OVERNIGHT/GLOBAL: " + ", ".join(f"{o['name']} {fmt_pct(o['change_pct'])}" for o in overnight))
@@ -1002,6 +1002,10 @@ def _opening_data_context(futures, overnight, gainers, losers, glance, radar):
         L.append("PRE-MARKET GAINERS: " + ", ".join(f"{g['symbol']} {fmt_pct(g['change_pct'])}" for g in gainers))
     if losers:
         L.append("PRE-MARKET LOSERS: " + ", ".join(f"{g['symbol']} {fmt_pct(g['change_pct'])}" for g in losers))
+    if news:
+        L.append("MARKET-MOVING NEWS (local intelligence): " + " ; ".join(
+            f"[{n['magnitude']}] {n['one_liner']}" + (f" ({', '.join(n['tickers'])})" if n.get("tickers") else "")
+            for n in news))
     if radar:
         L.append("ON THE RADAR TODAY: " + " ; ".join(r["text"] for r in radar))
     return "\n".join(L)
@@ -1020,20 +1024,21 @@ def _opening_fallback(futures, overnight):
     return {"summary": summary, "verdict": tone}
 
 
-def opening_bell_narrative(futures, overnight, gainers, losers, glance, radar, sources):
+def opening_bell_narrative(futures, overnight, gainers, losers, glance, radar, sources, news=None):
     if not os.getenv("OPENAI_API_KEY"):
         return _opening_fallback(futures, overnight)
     src_lines = "\n".join(f"[{s['n']}] {s['title']} — {s['url']}" for s in sources)
     sys = (
         "You are a market strategist writing the pre-market 'Before the Bell' brief for U.S. equities. "
         "It is FORWARD-LOOKING: what the setup implies for today's open and what to watch. Use ONLY the "
-        "data provided — never invent numbers. Cite catalysts as [n]. Output EXACTLY these two sections "
+        "data provided — never invent numbers. If MARKET-MOVING NEWS is provided, lead with the single "
+        "most important catalyst. Cite catalysts as [n]. Output EXACTLY these two sections "
         "with these literal markers:\n"
         "[[SUMMARY]] (2-3 short paragraphs: where futures and overnight markets point, and the key setup)\n"
         "[[VERDICT]] (a one-paragraph 'Pre-Market Setup': risk-on/risk-off into the open and the main "
         "catalyst to watch). Under 380 words. Markdown only: **bold**, [n] citations."
     )
-    user = f"DATA:\n{_opening_data_context(futures, overnight, gainers, losers, glance, radar)}\n\nNUMBERED SOURCES:\n{src_lines}"
+    user = f"DATA:\n{_opening_data_context(futures, overnight, gainers, losers, glance, radar, news)}\n\nNUMBERED SOURCES:\n{src_lines}"
     try:
         import llm_router
         resp = llm_router.chat_completion(
@@ -1090,6 +1095,13 @@ def build_opening_bell_context(universe_raw=None, recipient=""):
 
     radar = fetch_radar()
 
+    # Local news-intelligence (DGX Spark daemon -> SQLite); empty if not running.
+    try:
+        import intel_reader
+        news_intel = intel_reader.get_top_stories(limit=6)
+    except Exception:
+        news_intel = []
+
     # sources: data provenance + any radar URLs
     sources = [{"n": 1, "title": "Futures, global indices & market data", "url": "https://finance.yahoo.com/markets/world-indices/", "source": "Yahoo Finance", "summary": ""}]
     n = 1
@@ -1099,7 +1111,7 @@ def build_opening_bell_context(universe_raw=None, recipient=""):
             r["n"] = n
             sources.append({"n": n, "title": r["text"][:80], "url": r["url"], "source": "Web", "summary": ""})
 
-    narrative = opening_bell_narrative(futures, overnight, gainers, losers, glance, radar, sources)
+    narrative = opening_bell_narrative(futures, overnight, gainers, losers, glance, radar, sources, news_intel)
 
     base = os.getenv("REPORT_BASE_URL", "http://127.0.0.1:5000").rstrip("/")
     now, tz = now_market()
@@ -1119,7 +1131,7 @@ def build_opening_bell_context(universe_raw=None, recipient=""):
         "best_overnight": overnight[0] if overnight else None,
         "worst_overnight": overnight[-1] if overnight else None,
         "glance": glance, "gainers": gainers, "losers": losers, "breadth": breadth,
-        "premkt_live": live_pm, "radar": radar, "sources": sources,
+        "premkt_live": live_pm, "radar": radar, "news_intel": news_intel, "sources": sources,
         "summary_html": render_markdown(narrative.get("summary", "")),
         "tone_html": render_markdown(narrative.get("verdict", "")),
         "view_url": f"{base}/opening-bell",
