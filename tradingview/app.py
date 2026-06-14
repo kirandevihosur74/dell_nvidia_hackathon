@@ -91,6 +91,20 @@ def text_model(requested=None):
     """Model name for plain-text chat completions."""
     return LOCAL_TEXT_MODEL if USE_LOCAL_LLM else (requested or 'gpt-4o')
 
+# --- Grounded asset context (technical/fundamental/macro -> local model) -----
+# asset_context builds structured, model-ready context per symbol and formats a
+# prompt with an explicit have/have-not guardrail. The /api/analyze_assets route
+# below runs a chosen subset of symbols through the local model (text_client()).
+from asset_context import analyze_asset, FredClient, ALL_INTENTS
+
+# One FRED client reused across requests (enables rates/inflation/growth_cycle
+# when FRED_API_KEY is set; otherwise those intents report unavailable).
+_fred = FredClient()
+
+# Cap symbols per request (each = yfinance fetch + one local-model call).
+MAX_ANALYZE_SYMBOLS = int(os.getenv('MAX_ANALYZE_SYMBOLS', '25'))
+# -----------------------------------------------------------------------------
+
 # Define the API key for Polygon.io
 POLYGON_API_KEY = os.getenv('POLYGON_API_KEY')
 
@@ -2991,6 +3005,85 @@ def auth_me():
         "isNewUser": is_new_user
     }
     return jsonify(response)
+
+@app.route('/api/analyze_assets', methods=['POST'])
+def analyze_assets():
+    """Run a chosen subset of assets through the local model (Nemotron via
+    Ollama) with grounded technical/fundamental/macro context.
+
+    Request JSON:
+        {
+          "symbols": ["AAPL", "MSFT"],        # or "symbol": "AAPL"
+          "question": "Is it overbought and how's the macro backdrop?",
+          "intents": ["momentum", ...],        # optional; inferred from question
+          "persona": "a technical analyst",     # optional
+          "model": "<ollama model>",            # optional; defaults to text_model()
+          "include_context": false               # optional; echo grounding dict
+        }
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        symbols = data.get('symbols')
+        if not symbols and data.get('symbol'):
+            symbols = [data['symbol']]
+        question = (data.get('question') or '').strip()
+
+        if not symbols or not isinstance(symbols, list):
+            return jsonify({'error': 'Provide "symbols" (list) or "symbol" (string)'}), 400
+        if not question:
+            return jsonify({'error': '"question" is required'}), 400
+
+        symbols = [str(s).upper().strip() for s in symbols if str(s).strip()]
+        truncated = len(symbols) > MAX_ANALYZE_SYMBOLS
+        symbols = symbols[:MAX_ANALYZE_SYMBOLS]
+
+        intents = data.get('intents')
+        if intents is not None:
+            intents = [i for i in intents if i in ALL_INTENTS] or None
+        persona = data.get('persona')
+        include_context = bool(data.get('include_context'))
+        model = data.get('model') or text_model()
+
+        results = []
+        for sym in symbols:
+            entry = {'symbol': sym}
+            try:
+                # session=None -> asset_context manages its own impersonated session
+                built = analyze_asset(
+                    sym, question,
+                    intents=intents, fred=_fred, persona=persona,
+                )
+                ctx = built['context']
+                entry['intents_fulfilled'] = ctx.get('intents_fulfilled', [])
+                entry['intents_unavailable'] = ctx.get('intents_unavailable', [])
+
+                resp = text_client().chat.completions.create(
+                    model=model,
+                    messages=built['messages'],
+                    temperature=0.4,
+                    max_tokens=LOCAL_MAX_TOKENS,
+                )
+                entry['answer'] = resp.choices[0].message.content.strip()
+                if include_context:
+                    entry['context'] = ctx
+            except Exception as sym_e:
+                # One bad symbol/model call must not sink the whole batch.
+                entry['error'] = str(sym_e)
+                print(f"analyze_assets error for {sym}: {sym_e}")
+            results.append(entry)
+
+        return jsonify({
+            'question': question,
+            'model': model,
+            'results': results,
+            'truncated': truncated,
+        })
+
+    except Exception as e:
+        print(f"Error in analyze_assets endpoint: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
+
 
 # Ensure this is at the end of your file
 if __name__ == '__main__':
