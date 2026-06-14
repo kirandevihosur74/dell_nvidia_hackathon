@@ -334,11 +334,12 @@ def main():
     print("3/4  rendering:", " ".join(cmd))
     subprocess.run(cmd, env=env, check=True)
 
-    found = list(media.glob(f"videos/**/{outfile}"))
+    # Pick the NEWEST match — media/ may hold stale renders at other resolutions.
+    found = sorted(media.glob(f"videos/**/{outfile}"), key=lambda p: p.stat().st_mtime)
     if not found:
         print("ERROR: rendered file not found under", media); sys.exit(1)
     final = OUT / outfile
-    shutil.copyfile(found[0], final)
+    shutil.copyfile(found[-1], final)
     print(f"4/4  DONE -> {final}")
     if target:
         print(f"     ~{target-1:.0f}s narrated")
