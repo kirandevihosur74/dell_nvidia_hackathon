@@ -1387,6 +1387,33 @@ def closing_bell():
         recipient=recipient,
     )
 
+
+@app.route('/opening-bell', methods=['GET', 'POST'])
+def opening_bell():
+    recipient = (request.values.get('to') or '').strip()
+    universe = (request.values.get('universe') or '').strip()
+    ctx = report_engine.build_opening_bell_context(universe or None, recipient)
+    email_html = render_template('opening_bell_email.html', **ctx)
+
+    if len(email_html.encode('utf-8')) > report_engine.TRIM_THRESHOLD_BYTES:
+        ctx['gainers'] = ctx['gainers'][:3]
+        ctx['losers'] = ctx['losers'][:3]
+        ctx['radar'] = ctx['radar'][:4]
+        email_html = render_template('opening_bell_email.html', **ctx)
+
+    token = report_engine.cache_report(email_html, ctx)
+    size_kb = report_engine.html_size_kb(email_html)
+    return render_template(
+        'report_page.html',
+        email_html=email_html,
+        token=token,
+        size_kb=size_kb,
+        clip_risk=size_kb > 100,
+        subject=ctx['subject'],
+        symbols=[ctx['title']],
+        recipient=recipient,
+    )
+
 @app.route('/api/generate_ai_trade_plan', methods=['POST'])
 def generate_ai_trade_plan():
     try:

@@ -1,0 +1,10 @@
+# Optional deps for the Closing Bell explainer video (kept separate from the
+# main app so the web app stays light). Install only if you want video output.
+#
+# System deps first (macOS):   brew install ffmpeg py3cairo pango pkg-config
+# Then:                        pip install -r video/requirements-video.txt
+#
+# No LaTeX required — the scene uses Pango Text(), not Tex/MathTex.
+
+manim>=0.18,<0.19
+# narration reuses the app's existing `openai` dependency (tts-1).

@@ -557,7 +557,7 @@ _CACHE_ORDER = []
 
 def cache_report(html, ctx):
     token = secrets.token_urlsafe(8)
-    text = plaintext_closing(ctx) if "indices" in ctx else plaintext_summary(ctx)
+    text = ctx.get("text_plain") or (plaintext_closing(ctx) if "indices" in ctx else plaintext_summary(ctx))
     _CACHE[token] = {
         "html": html,
         "subject": ctx["subject"],
@@ -875,5 +875,228 @@ def plaintext_closing(ctx):
             lines.append(f"  {i['name']}: {fmt_money(i.get('price'))} ({fmt_pct(i.get('change_pct'))})")
     if ctx.get("best_sector"):
         lines.append(f"Sector leader: {ctx['best_sector']['name']} ({fmt_pct(ctx['best_sector']['change_pct'])})")
+    lines += ["", "Informational only — not investment advice."]
+    return "\n".join(lines)
+
+
+# ===========================================================================
+# Opening Bell — pre-market "what to watch" brief
+# ===========================================================================
+FUTURES = [("ES=F", "S&P 500 Futures"), ("NQ=F", "Nasdaq 100 Futures"),
+           ("YM=F", "Dow Futures"), ("RTY=F", "Russell 2000 Futures")]
+OVERNIGHT = [("^N225", "Nikkei 225"), ("^HSI", "Hang Seng"), ("^FTSE", "FTSE 100"),
+             ("^GDAXI", "DAX"), ("^STOXX50E", "Euro Stoxx 50")]
+
+
+def _openai_client():
+    if not os.getenv("OPENAI_API_KEY"):
+        return None
+    try:
+        from openai import OpenAI
+        return OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    except Exception:
+        return None
+
+
+def premarket_movers(symbols):
+    """Pre-market/overnight gap vs prior regular close (best-effort; flaky data)."""
+    out = {}
+    try:
+        import yfinance as yf
+        daily = yf.download(symbols, period="5d", interval="1d", prepost=False,
+                            group_by="ticker", progress=False, threads=True)
+        intr = yf.download(symbols, period="1d", interval="5m", prepost=True,
+                           group_by="ticker", progress=False, threads=True)
+    except Exception:
+        return {}
+    for sym in symbols:
+        try:
+            dclose = [float(x) for x in (daily if len(symbols) == 1 else daily[sym])["Close"].dropna().tolist()]
+            iclose = [float(x) for x in (intr if len(symbols) == 1 else intr[sym])["Close"].dropna().tolist()]
+            if not dclose or not iclose:
+                continue
+            prior, last = dclose[-1], iclose[-1]
+            if prior:
+                out[sym] = {"symbol": sym, "price": last, "change_pct": (last / prior - 1) * 100}
+        except Exception:
+            continue
+    return out
+
+
+def fetch_radar():
+    """Today's economic releases + notable earnings via web search (with fallback)."""
+    items = []
+    client = _openai_client()
+    if client:
+        try:
+            resp = client.chat.completions.create(
+                model=SEARCH_MODEL, web_search_options={},
+                messages=[{"role": "user", "content": (
+                    "List today's most important U.S. economic data releases (with release times in ET) "
+                    "and the most notable companies reporting earnings today (note before-open or after-close). "
+                    "Return concise bullet points, each starting with '- '. Include a source URL where possible.")}])
+            content = resp.choices[0].message.content or ""
+            for line in content.splitlines():
+                m = re.match(r"^\s*[-*]\s+(.*)", line)
+                if not m:
+                    continue
+                text = m.group(1)
+                url = None
+                um = re.search(r"(https?://[^\s)\]]+)", text)
+                if um:
+                    url = um.group(1)
+                    text = text.replace(um.group(0), "")
+                text = re.sub(r"\*\*|\[|\]|\(\s*\)", "", text).strip(" -—·•()")
+                if text:
+                    items.append({"text": text[:170], "url": url})
+        except Exception:
+            items = []
+    if not items:
+        items = [{"text": "Economic calendar & earnings — see the Yahoo Finance calendar.",
+                  "url": "https://finance.yahoo.com/calendar/"}]
+    return items[:6]
+
+
+def _opening_data_context(futures, overnight, gainers, losers, glance, radar):
+    L = ["FUTURES: " + " | ".join(f"{f['name']} {fmt_pct(f.get('change_pct'))}" for f in futures if f.get("ok"))]
+    if overnight:
+        L.append("OVERNIGHT/GLOBAL: " + ", ".join(f"{o['name']} {fmt_pct(o['change_pct'])}" for o in overnight))
+    if glance:
+        L.append("GAUGES: " + " | ".join(f"{g['label']} {g['value_text']} ({fmt_pct(g.get('change_pct'))})" for g in glance))
+    if gainers:
+        L.append("PRE-MARKET GAINERS: " + ", ".join(f"{g['symbol']} {fmt_pct(g['change_pct'])}" for g in gainers))
+    if losers:
+        L.append("PRE-MARKET LOSERS: " + ", ".join(f"{g['symbol']} {fmt_pct(g['change_pct'])}" for g in losers))
+    if radar:
+        L.append("ON THE RADAR TODAY: " + " ; ".join(r["text"] for r in radar))
+    return "\n".join(L)
+
+
+def _opening_fallback(futures, overnight):
+    es = next((f for f in futures if f["symbol"] == "ES=F" and f.get("ok")), None)
+    lead = overnight[0] if overnight else None
+    summary = ("U.S. stock index futures point " +
+               (f"**{'higher' if (es['change_pct'] or 0) >= 0 else 'lower'}** ahead of the open, with "
+                f"**S&P 500 futures {fmt_pct(es['change_pct'])}**" if es else "to a mixed open") +
+               (f". Overseas, **{lead['name']}** moved {fmt_pct(lead['change_pct'])} overnight" if lead else "") +
+               ". Figures are from Yahoo Finance [1]; set OPENAI_API_KEY for the full AI pre-market brief.")
+    tone = "Pre-market setup: " + ("risk-on" if (es and (es.get("change_pct") or 0) >= 0) else "cautious") + \
+           " into the open — watch the items on the radar below for catalysts."
+    return {"summary": summary, "verdict": tone}
+
+
+def opening_bell_narrative(futures, overnight, gainers, losers, glance, radar, sources):
+    if not os.getenv("OPENAI_API_KEY"):
+        return _opening_fallback(futures, overnight)
+    src_lines = "\n".join(f"[{s['n']}] {s['title']} — {s['url']}" for s in sources)
+    sys = (
+        "You are a market strategist writing the pre-market 'Before the Bell' brief for U.S. equities. "
+        "It is FORWARD-LOOKING: what the setup implies for today's open and what to watch. Use ONLY the "
+        "data provided — never invent numbers. Cite catalysts as [n]. Output EXACTLY these two sections "
+        "with these literal markers:\n"
+        "[[SUMMARY]] (2-3 short paragraphs: where futures and overnight markets point, and the key setup)\n"
+        "[[VERDICT]] (a one-paragraph 'Pre-Market Setup': risk-on/risk-off into the open and the main "
+        "catalyst to watch). Under 380 words. Markdown only: **bold**, [n] citations."
+    )
+    user = f"DATA:\n{_opening_data_context(futures, overnight, gainers, losers, glance, radar)}\n\nNUMBERED SOURCES:\n{src_lines}"
+    try:
+        import llm_router
+        resp = llm_router.chat_completion(
+            model=NARRATIVE_MODEL,
+            messages=[{"role": "system", "content": sys}, {"role": "user", "content": user}],
+            temperature=0.5, max_tokens=900)
+        return _split_sections(resp.choices[0].message.content or "")
+    except Exception:
+        return _opening_fallback(futures, overnight)
+
+
+def build_opening_bell_context(universe_raw=None, recipient=""):
+    movers_syms = [t for t in re.split(r"[\s,]+", universe_raw.upper()) if t][:40] if universe_raw else list(DEFAULT_MOVERS)
+
+    names = {**dict(FUTURES), **dict(OVERNIGHT), **{s: l for s, l, _ in GAUGES},
+             **{s: l for s, l, _ in COMMODITIES}}
+    real_syms = [s for s, _ in FUTURES] + [s for s, _ in OVERNIGHT] + \
+                [s for s, _, _ in GAUGES] + [s for s, _, _ in COMMODITIES]
+    quotes = batch_quotes(list(dict.fromkeys(real_syms)), names)
+
+    futures = [quotes[s] for s, _ in FUTURES]
+
+    overnight = []
+    for sym, label in OVERNIGHT:
+        q = quotes.get(sym, {})
+        if q.get("ok") and q.get("change_pct") is not None:
+            overnight.append({"symbol": sym, "name": label, "change_pct": q["change_pct"]})
+    overnight.sort(key=lambda x: x["change_pct"], reverse=True)
+    oscale = max([abs(o["change_pct"]) for o in overnight] + [0.1])
+    for o in overnight:
+        o["positive"] = o["change_pct"] >= 0
+        o["width"] = min(100, round(abs(o["change_pct"]) / oscale * 100))
+        o["text"] = fmt_pct(o["change_pct"])
+
+    glance = []
+    for sym, label, kind in GAUGES + COMMODITIES:
+        q = quotes.get(sym, {})
+        val = q.get("price")
+        glance.append({"label": label,
+                       "value_text": (fmt_money(val) if kind == "money" else fmt_num(val)) if val is not None else "—",
+                       "change_pct": q.get("change_pct"), "up": (q.get("change_pct") or 0) >= 0})
+
+    pm = premarket_movers(movers_syms)
+    live_pm = bool(pm)
+    if not pm:  # fall back to daily change so movers still populate
+        bq = batch_quotes(movers_syms, {})
+        pm = {s: {"symbol": s, "price": bq[s].get("price"), "change_pct": bq[s].get("change_pct")}
+              for s in movers_syms if bq.get(s, {}).get("ok") and bq[s].get("change_pct") is not None}
+    mvalid = sorted(pm.values(), key=lambda x: x["change_pct"], reverse=True)
+    gainers = [{"symbol": q["symbol"], "price": q["price"], "change_pct": q["change_pct"], "text": fmt_pct(q["change_pct"])} for q in mvalid[:5]]
+    losers = [{"symbol": q["symbol"], "price": q["price"], "change_pct": q["change_pct"], "text": fmt_pct(q["change_pct"])} for q in mvalid[-5:][::-1]]
+    breadth = {"adv": sum(1 for q in mvalid if q["change_pct"] >= 0),
+               "decl": sum(1 for q in mvalid if q["change_pct"] < 0), "total": len(mvalid)}
+
+    radar = fetch_radar()
+
+    # sources: data provenance + any radar URLs
+    sources = [{"n": 1, "title": "Futures, global indices & market data", "url": "https://finance.yahoo.com/markets/world-indices/", "source": "Yahoo Finance", "summary": ""}]
+    n = 1
+    for r in radar:
+        if r.get("url"):
+            n += 1
+            r["n"] = n
+            sources.append({"n": n, "title": r["text"][:80], "url": r["url"], "source": "Web", "summary": ""})
+
+    narrative = opening_bell_narrative(futures, overnight, gainers, losers, glance, radar, sources)
+
+    base = os.getenv("REPORT_BASE_URL", "http://127.0.0.1:5000").rstrip("/")
+    date_str = datetime.now().strftime("%A, %B %d, %Y")
+    es = next((f for f in futures if f["symbol"] == "ES=F" and f.get("ok")), None)
+    subject = f"The Opening Bell — {datetime.now().strftime('%b %d')}" + (f": S&P futures {fmt_pct(es['change_pct'])}" if es else "")
+
+    ctx = {
+        "report_type": "opening",
+        "title": "The Opening Bell", "subject": subject,
+        "filename": "opening_bell_" + datetime.now().strftime("%Y%m%d") + ".html",
+        "date_str": date_str, "recipient": recipient.strip(),
+        "futures": futures, "overnight": overnight,
+        "best_overnight": overnight[0] if overnight else None,
+        "worst_overnight": overnight[-1] if overnight else None,
+        "glance": glance, "gainers": gainers, "losers": losers, "breadth": breadth,
+        "premkt_live": live_pm, "radar": radar, "sources": sources,
+        "summary_html": render_markdown(narrative.get("summary", "")),
+        "tone_html": render_markdown(narrative.get("verdict", "")),
+        "view_url": f"{base}/opening-bell",
+        "generated_at": datetime.now().strftime("%B %d, %Y at %I:%M %p"),
+        "fmt_money": fmt_money, "fmt_big": fmt_big, "fmt_pct": fmt_pct, "fmt_num": fmt_num,
+    }
+    ctx["text_plain"] = plaintext_opening(ctx)
+    return ctx
+
+
+def plaintext_opening(ctx):
+    lines = [ctx["subject"], "", f"View online: {ctx['view_url']}", "", "Futures:"]
+    for f in ctx["futures"]:
+        if f.get("ok"):
+            lines.append(f"  {f['name']}: {fmt_pct(f.get('change_pct'))}")
+    if ctx.get("radar"):
+        lines += ["", "On the radar:"] + [f"  - {r['text']}" for r in ctx["radar"][:5]]
     lines += ["", "Informational only — not investment advice."]
     return "\n".join(lines)

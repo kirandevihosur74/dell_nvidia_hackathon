@@ -11,6 +11,10 @@ __pycache__/
 # OS / editor cruft
 .DS_Store
 
+# Video render output + Manim cache (generated artifacts)
+tradingview/video/out/
+tradingview/video/media/
+
 # Local OMC (oh-my-claudecode) tooling state
 .omc/
 # Elastic Beanstalk Files
