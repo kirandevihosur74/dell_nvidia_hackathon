@@ -59,6 +59,13 @@ MOCK_OPENING = {
     "title": "THE OPENING BELL", "date": "Friday, June 14, 2026",
     "stamp": "Friday, June 14, 2026 · 8:15 AM ET", "time": "8:15 AM ET",
     "headline": "Before the Bell",
+    "regime": {"label": "Risk-On", "color": "#16A34A",
+               "drivers": ["VIX contango", "low VIX", "futures higher"]},
+    "question": "Does this morning's CPI confirm the disinflation trend the Fed needs to cut in September?",
+    "levels": {"implied_open": "6,974", "implied_pct": "+0.34%", "vix_term": "Contango (calm)",
+               "vix_ratio": "0.87", "pivot": "6,947", "r1": "6,965", "s1": "6,931",
+               "dma200": "6,420", "rsi": "61"},
+    "news_top": "NVDA down 2 to 3 percent likely on fresh China export curbs",
     "scoreboard_title": "U.S. Stock Futures",
     "indices": [
         {"name": "S&P 500 Futures", "value": "6,958", "change_pct": 0.34},
@@ -102,9 +109,30 @@ def from_live_opening():
             fut.append({"name": f["name"].replace(" Futures", " Fut."),
                         "value": f"{v:,.0f}" if v > 1000 else f"{v:,.2f}",
                         "change_pct": round(f.get("change_pct") or 0, 2)})
+    tm = ctx.get("trading_map") or {}
+    reg = ctx.get("regime")
+    io, vt, lvl = tm.get("implied_open"), tm.get("vix_term"), tm.get("levels")
+    levels = None
+    if io or vt or lvl:
+        levels = {}
+        if io:
+            levels["implied_open"] = f"{io['implied_open']:,.0f}"
+            levels["implied_pct"] = f"{io['es_pct']:+.2f}%"
+        if vt:
+            levels["vix_term"] = vt["state"]; levels["vix_ratio"] = vt["ratio"]
+        if lvl:
+            levels.update({"pivot": f"{lvl['pivot']:,.0f}", "r1": f"{lvl['r1']:,.0f}",
+                           "s1": f"{lvl['s1']:,.0f}",
+                           "dma200": f"{lvl['dma200']:,.0f}" if lvl.get("dma200") else "",
+                           "rsi": f"{lvl['rsi']:.0f}" if lvl.get("rsi") else ""})
+    news = ctx.get("news_intel") or []
+    news_top = re.sub(r"[*_\[\]#]", "", news[0]["one_liner"]) if news else None
     return {
         "title": "THE OPENING BELL", "date": ctx["date_str"],
         "stamp": ctx["generated_at"], "time": ctx["time_str"], "headline": "Before the Bell",
+        "regime": ({"label": reg["label"], "color": reg["color"], "drivers": reg["drivers"][:3]} if reg else None),
+        "question": re.sub(r"[*_\[\]#]", "", ctx.get("question_text", "")).strip() or None,
+        "levels": levels, "news_top": news_top,
         "scoreboard_title": "U.S. Stock Futures", "indices": fut,
         "bars_title": "Overnight & Global Markets",
         "sectors": [{"name": o["name"], "change_pct": round(o["change_pct"], 2)} for o in ctx["overnight"]],
@@ -187,6 +215,13 @@ def build_script_opening(d):
 
     when = f", as of {d['time']}" if d.get("time") else ""
     parts = [f"Good morning. Here's what to watch before the opening bell on {d.get('date','today')}{when}."]
+    reg = d.get("regime")
+    if reg:
+        parts.append(f"The cross-asset regime reads {reg['label'].lower()}.")
+    if d.get("question"):
+        parts.append(f"The question that decides today's tape: {d['question']}")
+    if d.get("news_top"):
+        parts.append(f"The top story this morning: {d['news_top']}.")
     fut = d.get("indices", [])
     if fut:
         s = fut[0]

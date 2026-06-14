@@ -14,7 +14,7 @@ import json
 import os
 
 from manim import (
-    Scene, Text, Rectangle, Line, VGroup, Dot,
+    Scene, Text, Rectangle, RoundedRectangle, Line, VGroup, Dot,
     FadeIn, FadeOut, GrowFromEdge, Write, Create, LaggedStart,
     config, UP, DOWN, LEFT, RIGHT, ORIGIN,
 )
@@ -58,6 +58,18 @@ def _t(s, size, color=INK, weight="NORMAL"):
     return Text(s, font=SERIF, font_size=size, color=color, weight=weight)
 
 
+def _wrap(text, width=44):
+    words, lines, cur = text.split(), [], ""
+    for w in words:
+        if len(cur) + len(w) + 1 > width and cur:
+            lines.append(cur); cur = w
+        else:
+            cur = (cur + " " + w).strip()
+    if cur:
+        lines.append(cur)
+    return "\n".join(lines)
+
+
 class ClosingBellVideo(Scene):
     def construct(self):
         self.data = _load_data()
@@ -66,7 +78,9 @@ class ClosingBellVideo(Scene):
             self.add_sound(audio)
 
         self.title_card()
+        self.regime_card()
         self.index_scoreboard()
+        self.levels_card()
         self.sector_bars()
         self.movers()
         self.radar()
@@ -181,6 +195,63 @@ class ClosingBellVideo(Scene):
                               lag_ratio=0.3), run_time=1.6)
         self.wait(2.6)
         self.play(FadeOut(heading), FadeOut(cols), run_time=0.6)
+
+    # ----------------------------------------------------- regime + question
+    def regime_card(self):
+        reg = self.data.get("regime")
+        question = self.data.get("question")
+        if not reg and not question:
+            return
+        group = VGroup()
+        if reg:
+            label = _t(reg.get("label", "").upper(), 34, "#FFFFFF", "BOLD")
+            pill = RoundedRectangle(corner_radius=0.14, width=label.width + 0.8,
+                                    height=label.height + 0.42, stroke_width=0,
+                                    fill_color=reg.get("color", MAROON), fill_opacity=1)
+            chip = VGroup(pill, label)
+            cap = _t("MARKET REGIME", 18, SUBTLE)
+            group.add(VGroup(cap, chip).arrange(DOWN, buff=0.22))
+        if question:
+            qcap = _t("QUESTION OF THE DAY", 18, MAROON, "BOLD")
+            qtext = _t(_wrap(question, 42), 28, INK)
+            group.add(VGroup(qcap, qtext).arrange(DOWN, buff=0.28))
+        group.arrange(DOWN, buff=0.8).move_to(ORIGIN)
+
+        self.play(FadeIn(group, shift=UP * 0.3), run_time=1.0)
+        self.wait(3.0)
+        self.play(FadeOut(group), run_time=0.6)
+
+    # ------------------------------------------------------------ key levels
+    def levels_card(self):
+        lv = self.data.get("levels")
+        if not lv:
+            return
+        heading = self._section(self.data.get("levels_title", "Key Levels")).to_edge(UP, buff=0.7)
+        self.play(FadeIn(heading, shift=DOWN * 0.2), run_time=0.6)
+
+        def stat(label, value, color=INK):
+            return VGroup(_t(label, 18, SUBTLE), _t(str(value), 26, color, "BOLD")).arrange(DOWN, buff=0.12)
+
+        top = VGroup()
+        if lv.get("implied_open"):
+            pct = str(lv.get("implied_pct", ""))
+            top.add(stat("Implied open", f"{lv['implied_open']}  {pct}", GREEN if "+" in pct else RED))
+        if lv.get("vix_term"):
+            top.add(stat("VIX term", f"{lv['vix_term']}  ({lv.get('vix_ratio','')})"))
+        top.arrange(RIGHT, buff=1.6)
+
+        piv = VGroup()
+        for lab, key, color in [("R1", "r1", GREEN), ("Pivot", "pivot", INK),
+                                ("S1", "s1", RED), ("200-DMA", "dma200", INK), ("RSI 14", "rsi", INK)]:
+            if lv.get(key) not in (None, ""):
+                piv.add(VGroup(_t(lab, 16, SUBTLE), _t(str(lv[key]), 24, color, "BOLD")).arrange(DOWN, buff=0.1))
+        piv.arrange(RIGHT, buff=1.0)
+
+        body = VGroup(top, piv).arrange(DOWN, buff=0.9).next_to(heading, DOWN, buff=1.0)
+        self.play(FadeIn(top, shift=UP * 0.2), run_time=0.8)
+        self.play(LaggedStart(*[FadeIn(p, shift=UP * 0.2) for p in piv], lag_ratio=0.18), run_time=1.2)
+        self.wait(2.8)
+        self.play(FadeOut(heading), FadeOut(body), run_time=0.6)
 
     # ----------------------------------------------------------------- radar
     def radar(self):

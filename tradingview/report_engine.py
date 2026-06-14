@@ -1146,6 +1146,7 @@ def build_opening_bell_context(universe_raw=None, recipient=""):
         "glance": glance, "gainers": gainers, "losers": losers, "breadth": breadth,
         "premkt_live": live_pm, "radar": radar, "news_intel": news_intel, "sources": sources,
         "trading_map": trading_map, "regime": trading_map.get("regime"),
+        "question_text": narrative.get("question", ""),
         "question_html": render_markdown(narrative.get("question", "")),
         "summary_html": render_markdown(narrative.get("summary", "")),
         "tone_html": render_markdown(narrative.get("verdict", "")),
