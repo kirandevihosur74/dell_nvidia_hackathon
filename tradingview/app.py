@@ -3197,6 +3197,97 @@ def analyze_assets():
         return jsonify({'error': str(e)}), 500
 
 
+def _sse(event, payload):
+    """Format one Server-Sent Event frame."""
+    return f"event: {event}\ndata: {json.dumps(payload, default=str)}\n\n"
+
+
+@app.route('/api/analyze_assets/stream', methods=['POST'])
+def analyze_assets_stream():
+    """Streaming (SSE) variant of /api/analyze_assets. Same input contract, but
+    instead of one blocking JSON response it pushes live events so the client
+    can show real activity:
+
+        event: plan     -> {symbols, intents, model, count}
+        event: fetch    -> {symbol}                       (grounding started)
+        event: context  -> {symbol, intents_fulfilled, intents_unavailable}
+        event: token    -> {symbol, delta}                (answer streamed)
+        event: result   -> {symbol, analysis_id, ...}     (persisted to Postgres)
+        event: error    -> {symbol, error, analysis_id}
+        event: done     -> {symbols}
+
+    Cancellation: the client closing the connection aborts the generation.
+    The blocking POST /api/analyze_assets is unchanged.
+    """
+    data = request.get_json(silent=True) or {}
+    symbols = data.get('symbols')
+    if not symbols and data.get('symbol'):
+        symbols = [data['symbol']]
+    question = (data.get('question') or '').strip()
+
+    # Validate before we start streaming so errors are normal HTTP responses.
+    if not symbols or not isinstance(symbols, list):
+        return jsonify({'error': 'Provide "symbols" (list) or "symbol" (string)'}), 400
+    if not question:
+        return jsonify({'error': '"question" is required'}), 400
+
+    symbols = [str(s).upper().strip() for s in symbols if str(s).strip()][:MAX_ANALYZE_SYMBOLS]
+    intents = data.get('intents')
+    if intents is not None:
+        intents = [i for i in intents if i in ALL_INTENTS] or None
+    persona = data.get('persona')
+    model = data.get('model') or text_model()
+    client_ip = request.headers.get('X-Forwarded-For') or request.remote_addr
+
+    def generate():
+        yield _sse('plan', {'symbols': symbols, 'intents': intents or 'auto',
+                            'model': model, 'count': len(symbols)})
+        for sym in symbols:
+            try:
+                yield _sse('fetch', {'symbol': sym, 'status': 'gathering grounded context'})
+                built = analyze_asset(sym, question, intents=intents,
+                                      fred=_fred, persona=persona)
+                ctx = built['context']
+                fulfilled = ctx.get('intents_fulfilled', [])
+                unavailable = ctx.get('intents_unavailable', [])
+                yield _sse('context', {'symbol': sym,
+                                       'intents_fulfilled': fulfilled,
+                                       'intents_unavailable': unavailable})
+
+                parts = []
+                stream = text_client().chat.completions.create(
+                    model=model, messages=built['messages'],
+                    temperature=0.4, max_tokens=LOCAL_MAX_TOKENS, stream=True,
+                )
+                for chunk in stream:
+                    delta = chunk.choices[0].delta.content if chunk.choices else None
+                    if delta:
+                        parts.append(delta)
+                        yield _sse('token', {'symbol': sym, 'delta': delta})
+                answer = ''.join(parts).strip()
+
+                row_id = pg_store.save_asset_analysis(
+                    sym, question, answer=answer, model=model, persona=persona,
+                    intents=intents, intents_fulfilled=fulfilled,
+                    intents_unavailable=unavailable, client_ip=client_ip)
+                yield _sse('result', {'symbol': sym, 'analysis_id': row_id,
+                                      'intents_fulfilled': fulfilled,
+                                      'intents_unavailable': unavailable})
+            except Exception as sym_e:  # noqa: BLE001
+                row_id = pg_store.save_asset_analysis(
+                    sym, question, error=str(sym_e), model=model,
+                    intents=intents, client_ip=client_ip)
+                yield _sse('error', {'symbol': sym, 'error': str(sym_e),
+                                     'analysis_id': row_id})
+        yield _sse('done', {'symbols': symbols})
+
+    return Response(generate(), mimetype='text/event-stream', headers={
+        'Cache-Control': 'no-cache',
+        'X-Accel-Buffering': 'no',   # don't let proxies buffer the stream
+        'Connection': 'keep-alive',
+    })
+
+
 # Ensure this is at the end of your file
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True, threaded=True)
