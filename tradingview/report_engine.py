@@ -399,8 +399,8 @@ def _data_context(snapshots):
 
 
 def _split_sections(text):
-    out = {"summary": "", "verdict": "", "notes": ""}
-    parts = re.split(r"\[\[(SUMMARY|VERDICT|NOTES)\]\]", text)
+    out = {"question": "", "summary": "", "verdict": "", "notes": ""}
+    parts = re.split(r"\[\[(QUESTION|SUMMARY|VERDICT|NOTES)\]\]", text)
     if len(parts) > 1:
         for i in range(1, len(parts) - 1, 2):
             key = parts[i].strip().lower()
@@ -1011,34 +1011,45 @@ def _opening_data_context(futures, overnight, gainers, losers, glance, radar, ne
     return "\n".join(L)
 
 
-def _opening_fallback(futures, overnight):
+def _opening_fallback(futures, overnight, trading_map=None, radar=None):
     es = next((f for f in futures if f["symbol"] == "ES=F" and f.get("ok")), None)
     lead = overnight[0] if overnight else None
-    summary = ("U.S. stock index futures point " +
-               (f"**{'higher' if (es['change_pct'] or 0) >= 0 else 'lower'}** ahead of the open, with "
+    regime = (trading_map or {}).get("regime")
+    catalyst = radar[0]["text"] if radar else "the day's economic data"
+    question = f"Does {catalyst.split('—')[0].strip().lower() or 'today’s data'} confirm the " + \
+               f"{(regime['label'] if regime else 'current').lower()} setup into the open?"
+    summary = ((f"The rules-based regime reads **{regime['label']}** ({', '.join(regime['drivers'])}). " if regime else "") +
+               "U.S. stock index futures point " +
+               (f"**{'higher' if (es['change_pct'] or 0) >= 0 else 'lower'}**, with "
                 f"**S&P 500 futures {fmt_pct(es['change_pct'])}**" if es else "to a mixed open") +
-               (f". Overseas, **{lead['name']}** moved {fmt_pct(lead['change_pct'])} overnight" if lead else "") +
+               (f"; overseas, **{lead['name']}** moved {fmt_pct(lead['change_pct'])} overnight" if lead else "") +
                ". Figures are from Yahoo Finance [1]; set OPENAI_API_KEY for the full AI pre-market brief.")
-    tone = "Pre-market setup: " + ("risk-on" if (es and (es.get("change_pct") or 0) >= 0) else "cautious") + \
-           " into the open — watch the items on the radar below for catalysts."
-    return {"summary": summary, "verdict": tone}
+    tone = "Pre-market setup: " + ((regime["label"].lower() if regime else
+            ("risk-on" if (es and (es.get("change_pct") or 0) >= 0) else "cautious"))) + \
+           " into the open — watch the radar items below for catalysts."
+    return {"question": question, "summary": summary, "verdict": tone}
 
 
-def opening_bell_narrative(futures, overnight, gainers, losers, glance, radar, sources, news=None):
+def opening_bell_narrative(futures, overnight, gainers, losers, glance, radar, sources, news=None, trading_map=None):
     if not os.getenv("OPENAI_API_KEY"):
-        return _opening_fallback(futures, overnight)
+        return _opening_fallback(futures, overnight, trading_map, radar)
     src_lines = "\n".join(f"[{s['n']}] {s['title']} — {s['url']}" for s in sources)
     sys = (
         "You are a market strategist writing the pre-market 'Before the Bell' brief for U.S. equities. "
         "It is FORWARD-LOOKING: what the setup implies for today's open and what to watch. Use ONLY the "
         "data provided — never invent numbers. If MARKET-MOVING NEWS is provided, lead with the single "
-        "most important catalyst. Cite catalysts as [n]. Output EXACTLY these two sections "
+        "most important catalyst. Cite catalysts as [n]. Output EXACTLY these three sections "
         "with these literal markers:\n"
-        "[[SUMMARY]] (2-3 short paragraphs: where futures and overnight markets point, and the key setup)\n"
+        "[[QUESTION]] (ONE sentence: the single question that decides today's tape, ending in '?')\n"
+        "[[SUMMARY]] (2-3 short paragraphs: anchor to the REGIME read, then where futures and overnight "
+        "markets point and the key setup)\n"
         "[[VERDICT]] (a one-paragraph 'Pre-Market Setup': risk-on/risk-off into the open and the main "
-        "catalyst to watch). Under 380 words. Markdown only: **bold**, [n] citations."
+        "catalyst to watch). Under 400 words. Markdown only: **bold**, [n] citations."
     )
-    user = f"DATA:\n{_opening_data_context(futures, overnight, gainers, losers, glance, radar, news)}\n\nNUMBERED SOURCES:\n{src_lines}"
+    tm_ctx = _trading_map_context(trading_map)
+    user = (f"DATA:\n{_opening_data_context(futures, overnight, gainers, losers, glance, radar, news)}"
+            + (f"\n\nMARKET STRUCTURE:\n{tm_ctx}" if tm_ctx else "")
+            + f"\n\nNUMBERED SOURCES:\n{src_lines}")
     try:
         import llm_router
         resp = llm_router.chat_completion(
@@ -1056,7 +1067,7 @@ def build_opening_bell_context(universe_raw=None, recipient=""):
     names = {**dict(FUTURES), **dict(OVERNIGHT), **{s: l for s, l, _ in GAUGES},
              **{s: l for s, l, _ in COMMODITIES}}
     real_syms = [s for s, _ in FUTURES] + [s for s, _ in OVERNIGHT] + \
-                [s for s, _, _ in GAUGES] + [s for s, _, _ in COMMODITIES]
+                [s for s, _, _ in GAUGES] + [s for s, _, _ in COMMODITIES] + ["^VIX3M"]
     quotes = batch_quotes(list(dict.fromkeys(real_syms)), names)
 
     futures = [quotes[s] for s, _ in FUTURES]
@@ -1111,7 +1122,9 @@ def build_opening_bell_context(universe_raw=None, recipient=""):
             r["n"] = n
             sources.append({"n": n, "title": r["text"][:80], "url": r["url"], "source": "Web", "summary": ""})
 
-    narrative = opening_bell_narrative(futures, overnight, gainers, losers, glance, radar, sources, news_intel)
+    trading_map = fetch_trading_map(quotes, overnight)
+
+    narrative = opening_bell_narrative(futures, overnight, gainers, losers, glance, radar, sources, news_intel, trading_map)
 
     base = os.getenv("REPORT_BASE_URL", "http://127.0.0.1:5000").rstrip("/")
     now, tz = now_market()
@@ -1132,6 +1145,8 @@ def build_opening_bell_context(universe_raw=None, recipient=""):
         "worst_overnight": overnight[-1] if overnight else None,
         "glance": glance, "gainers": gainers, "losers": losers, "breadth": breadth,
         "premkt_live": live_pm, "radar": radar, "news_intel": news_intel, "sources": sources,
+        "trading_map": trading_map, "regime": trading_map.get("regime"),
+        "question_html": render_markdown(narrative.get("question", "")),
         "summary_html": render_markdown(narrative.get("summary", "")),
         "tone_html": render_markdown(narrative.get("verdict", "")),
         "view_url": f"{base}/opening-bell",
@@ -1151,3 +1166,125 @@ def plaintext_opening(ctx):
         lines += ["", "On the radar:"] + [f"  - {r['text']}" for r in ctx["radar"][:5]]
     lines += ["", "Informational only — not investment advice."]
     return "\n".join(lines)
+
+
+# ===========================================================================
+# Trading Map (Stage 1 quant blocks) — regime, VIX term, implied open, levels
+# ===========================================================================
+def _regime(quotes, vix, vix3m, es_pct, overnight):
+    """Deterministic risk-on / risk-off score from cross-asset signals."""
+    score, drivers = 0.0, []
+    if vix is not None and vix3m is not None:
+        if vix3m > vix:
+            score += 1; drivers.append("VIX term in contango")
+        else:
+            score -= 1; drivers.append("VIX backwardation (stress)")
+    if vix is not None:
+        if vix < 16:
+            score += 1; drivers.append(f"low VIX ({vix:.1f})")
+        elif vix > 24:
+            score -= 1; drivers.append(f"elevated VIX ({vix:.1f})")
+    if es_pct is not None:
+        if es_pct > 0.05:
+            score += 1; drivers.append("futures higher")
+        elif es_pct < -0.05:
+            score -= 1; drivers.append("futures lower")
+    dxy = quotes.get("DX-Y.NYB", {}).get("change_pct")
+    if dxy is not None:
+        if dxy < -0.05:
+            score += 0.5; drivers.append("softer dollar")
+        elif dxy > 0.05:
+            score -= 0.5; drivers.append("firmer dollar")
+    if overnight:
+        avg = sum(o["change_pct"] for o in overnight) / len(overnight)
+        if avg > 0.1:
+            score += 0.5; drivers.append("Asia/Europe higher")
+        elif avg < -0.1:
+            score -= 0.5; drivers.append("Asia/Europe lower")
+    if score >= 1.5:
+        label, color = "Risk-On", GREEN
+    elif score <= -1.5:
+        label, color = "Risk-Off", RED
+    else:
+        label, color = "Mixed / Transition", "#b45309"
+    return {"label": label, "color": color, "score": round(score, 1), "drivers": drivers[:4]}
+
+
+def fetch_trading_map(quotes, overnight):
+    """VIX term structure, futures-implied open, and S&P technical levels."""
+    tm = {"ok": False, "error": None}
+    vix = quotes.get("^VIX", {}).get("price")
+    vix3m = quotes.get("^VIX3M", {}).get("price")
+    es = quotes.get("ES=F", {})
+    es_pct = es.get("change_pct")
+
+    tm["regime"] = _regime(quotes, vix, vix3m, es_pct, overnight)
+
+    # VIX term structure
+    if vix and vix3m:
+        ratio = vix / vix3m
+        tm["vix_term"] = {
+            "vix": vix, "vix3m": vix3m, "ratio": round(ratio, 2),
+            "state": "Contango (calm)" if ratio < 1 else "Backwardation (stress)",
+            "color": GREEN if ratio < 1 else RED,
+        }
+
+    # S&P technical levels from daily history
+    try:
+        import yfinance as yf
+        h = yf.Ticker("^GSPC").history(period="1y")
+        closes = h["Close"].dropna()
+        if len(closes) >= 20:
+            last = float(closes.iloc[-1])
+            prior = h.iloc[-1]
+            ph, pl, pc = float(prior["High"]), float(prior["Low"]), float(prior["Close"])
+            delta = closes.diff()
+            up = delta.clip(lower=0).ewm(alpha=1 / 14, adjust=False).mean()
+            dn = (-delta.clip(upper=0)).ewm(alpha=1 / 14, adjust=False).mean()
+            rs = up / dn.replace(0, float("nan"))
+            rsi = float(100 - 100 / (1 + rs.iloc[-1])) if rs.iloc[-1] == rs.iloc[-1] else None
+            p = (ph + pl + pc) / 3
+            dma200 = float(closes.tail(200).mean()) if len(closes) >= 200 else None
+            tm["levels"] = {
+                "last": last, "prior_high": ph, "prior_low": pl, "prior_close": pc,
+                "dma20": float(closes.tail(20).mean()),
+                "dma50": float(closes.tail(50).mean()) if len(closes) >= 50 else None,
+                "dma200": dma200,
+                "above_200": (last >= dma200) if dma200 else None,
+                "rsi": rsi,
+                "pivot": p, "r1": 2 * p - pl, "s1": 2 * p - ph,
+                "r2": p + (ph - pl), "s2": p - (ph - pl),
+            }
+            # futures-implied open: apply ES overnight % to cash close
+            if es_pct is not None:
+                implied = pc * (1 + es_pct / 100)
+                tm["implied_open"] = {
+                    "cash_prev_close": pc, "es_pct": es_pct,
+                    "implied_open": implied, "gap_pts": implied - pc,
+                    "premium_pts": (es.get("price") - pc) if es.get("price") else None,
+                }
+            tm["ok"] = True
+    except Exception as e:  # noqa: BLE001
+        tm["error"] = str(e)
+    return tm
+
+
+def _trading_map_context(tm):
+    if not tm:
+        return ""
+    L = []
+    r = tm.get("regime")
+    if r:
+        L.append(f"REGIME (rules-based): {r['label']} (score {r['score']}; {', '.join(r['drivers'])})")
+    vt = tm.get("vix_term")
+    if vt:
+        L.append(f"VIX TERM: {vt['state']} — VIX {fmt_num(vt['vix'])} / VIX3M {fmt_num(vt['vix3m'])} (ratio {vt['ratio']})")
+    io = tm.get("implied_open")
+    if io:
+        L.append(f"IMPLIED OPEN: ~{fmt_num(io['implied_open'], 0)} ({fmt_pct(io['es_pct'])}), {io['gap_pts']:+.0f} pts vs cash")
+    lv = tm.get("levels")
+    if lv:
+        L.append(f"S&P LEVELS: prior close {fmt_num(lv['prior_close'],0)}, 50-DMA {fmt_num(lv['dma50'],0)}, "
+                 f"200-DMA {fmt_num(lv['dma200'],0)}, RSI {fmt_num(lv['rsi'],0)}, "
+                 f"pivot {fmt_num(lv['pivot'],0)} (R1 {fmt_num(lv['r1'],0)} / S1 {fmt_num(lv['s1'],0)})")
+    return "\n".join(L)
