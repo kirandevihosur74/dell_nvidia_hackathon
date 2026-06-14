@@ -557,11 +557,12 @@ _CACHE_ORDER = []
 
 def cache_report(html, ctx):
     token = secrets.token_urlsafe(8)
+    text = plaintext_closing(ctx) if "indices" in ctx else plaintext_summary(ctx)
     _CACHE[token] = {
         "html": html,
         "subject": ctx["subject"],
         "filename": ctx["filename"],
-        "text": plaintext_summary(ctx),
+        "text": text,
     }
     _CACHE_ORDER.append(token)
     while len(_CACHE_ORDER) > 50:
@@ -611,3 +612,268 @@ def send_email(to, subject, html, text_fallback=None):
         return {"ok": True, "error": None}
     except Exception as e:  # noqa: BLE001
         return {"ok": False, "error": str(e)}
+
+
+# ===========================================================================
+# Closing Bell — daily end-of-day market wrap
+# ===========================================================================
+INDICES = [("^GSPC", "S&P 500"), ("^IXIC", "Nasdaq Composite"),
+           ("^DJI", "Dow Jones"), ("^RUT", "Russell 2000")]
+GAUGES = [("^VIX", "VIX (volatility)", "num"), ("^TNX", "10-Yr Yield", "num"),
+          ("DX-Y.NYB", "US Dollar (DXY)", "num")]
+COMMODITIES = [("CL=F", "WTI Crude", "money"), ("GC=F", "Gold", "money"),
+               ("BTC-USD", "Bitcoin", "money")]
+SECTORS = [("XLK", "Technology"), ("XLF", "Financials"), ("XLE", "Energy"),
+           ("XLV", "Health Care"), ("XLI", "Industrials"), ("XLY", "Cons. Discretionary"),
+           ("XLP", "Cons. Staples"), ("XLU", "Utilities"), ("XLB", "Materials"),
+           ("XLRE", "Real Estate"), ("XLC", "Communication Svcs")]
+DEFAULT_MOVERS = [
+    "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "AVGO", "LLY", "JPM",
+    "V", "XOM", "UNH", "MA", "HD", "PG", "COST", "JNJ", "WMT", "NFLX",
+    "CRM", "AMD", "INTC", "BAC", "KO", "PEP", "DIS", "CVX", "ORCL", "ADBE",
+]
+
+
+def make_spark_bars(values, max_h=32):
+    bars = []
+    if len(values) >= 2:
+        lo, hi = min(values), max(values)
+        rng = (hi - lo) or 1
+        color = GREEN if values[-1] >= values[0] else RED
+        for v in values:
+            bars.append({"h": 6 + round((v - lo) / rng * max_h), "color": color})
+    return bars
+
+
+def batch_quotes(symbols, names=None):
+    """One yfinance download for many symbols (fast, no per-ticker .info)."""
+    names = names or {}
+    out = {}
+    data = None
+    try:
+        import yfinance as yf
+        data = yf.download(symbols, period="1mo", interval="1d",
+                           group_by="ticker", auto_adjust=False, threads=True, progress=False)
+    except Exception:
+        data = None
+
+    for sym in symbols:
+        q = {"symbol": sym, "name": names.get(sym, sym), "ok": False, "error": None}
+        try:
+            if data is None:
+                raise ValueError("no data")
+            df = data if len(symbols) == 1 else data[sym]
+            closes = [float(x) for x in df["Close"].dropna().tolist()]
+            if len(closes) < 2:
+                raise ValueError("insufficient history")
+            price, prev = closes[-1], closes[-2]
+            highs = df["High"].dropna().tolist()
+            lows = df["Low"].dropna().tolist()
+            q.update({
+                "ok": True, "price": price, "prev": prev,
+                "change": price - prev,
+                "change_pct": (price - prev) / prev * 100 if prev else None,
+                "day_high": float(highs[-1]) if highs else None,
+                "day_low": float(lows[-1]) if lows else None,
+                "spark": closes[-12:], "spark_bars": make_spark_bars(closes[-12:]),
+            })
+        except Exception as e:  # noqa: BLE001
+            q["error"] = str(e)
+        out[sym] = q
+    return out
+
+
+def _search_market(client):
+    resp = client.chat.completions.create(
+        model=SEARCH_MODEL,
+        web_search_options={},
+        messages=[{"role": "user", "content": (
+            "List the 4 most relevant news items explaining what moved the U.S. stock market "
+            "today (an end-of-day closing recap). For each provide:\n- Title\n- URL (source link)\n"
+            "- Brief summary of the key driver.")}],
+    )
+    content = resp.choices[0].message.content or ""
+    items = []
+    pattern = (r'\*\*Title:\*\*\s*"?([^"\n]+)"?[\s\S]*?\*\*URL:\*\*\s*\(?\[?[^\]]*\]?\(?'
+               r'(https?://[^\s)\]]+)\)?[\s\S]*?\*\*Summary:\*\*\s*(.*?)(?=\n\d+\.|\n\*\*Title|$)')
+    for title, url, summary in re.findall(pattern, content, re.DOTALL):
+        items.append({"title": title.strip(), "url": url.strip(), "summary": summary.strip(), "source": "Web"})
+    if not items:
+        for title, url in re.findall(r'\[([^\]]+)\]\((https?://[^)]+)\)', content):
+            items.append({"title": title.strip(), "url": url.strip(), "summary": "", "source": "Web"})
+    return items[:4]
+
+
+def fetch_market_citations():
+    sources = [{"n": 1, "title": "Index, sector & market data (quotes, history)",
+                "url": "https://finance.yahoo.com/markets/", "source": "Yahoo Finance", "summary": ""}]
+    client = None
+    if os.getenv("OPENAI_API_KEY"):
+        try:
+            from openai import OpenAI
+            client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        except Exception:
+            client = None
+    items = []
+    if client is not None:
+        try:
+            items = _search_market(client)
+        except Exception:
+            items = []
+    if not items:
+        items = [
+            {"title": "U.S. markets — today's close", "url": "https://www.cnbc.com/markets/", "source": "CNBC", "summary": ""},
+            {"title": "Market snapshot & movers", "url": "https://www.marketwatch.com/markets", "source": "MarketWatch", "summary": ""},
+        ]
+    n = 1
+    for it in items:
+        n += 1
+        sources.append({**it, "n": n, "summary": it.get("summary", "")})
+    return sources
+
+
+def _closing_data_context(indices, sectors, gainers, losers, glance):
+    L = []
+    L.append("INDICES: " + " | ".join(
+        f"{i['name']} {fmt_pct(i.get('change_pct'))}" for i in indices if i.get("ok")))
+    if sectors:
+        L.append("SECTORS best->worst: " + ", ".join(
+            f"{s['name']} {fmt_pct(s['change_pct'])}" for s in sectors))
+    if gainers:
+        L.append("TOP GAINERS: " + ", ".join(f"{g['symbol']} {fmt_pct(g['change_pct'])}" for g in gainers))
+    if losers:
+        L.append("TOP LOSERS: " + ", ".join(f"{g['symbol']} {fmt_pct(g['change_pct'])}" for g in losers))
+    if glance:
+        L.append("GAUGES: " + " | ".join(f"{g['label']} {g['value_text']} ({fmt_pct(g.get('change_pct'))})" for g in glance))
+    return "\n".join(L)
+
+
+def _closing_fallback(indices, sectors, breadth):
+    spx = next((i for i in indices if i["symbol"] == "^GSPC" and i.get("ok")), None)
+    lead = sectors[0] if sectors else None
+    lag = sectors[-1] if sectors else None
+    summary = "U.S. equities " + (
+        f"finished the session with the **S&P 500 {fmt_pct(spx['change_pct'])}**" if spx else "closed mixed") + \
+        (f", led by **{lead['name']}** ({fmt_pct(lead['change_pct'])}) while **{lag['name']}** ({fmt_pct(lag['change_pct'])}) lagged" if lead and lag else "") + \
+        ". Figures are drawn from Yahoo Finance [1]; set OPENAI_API_KEY for the full AI market wrap."
+    tone = "Risk tone: " + ("constructive" if (spx and (spx.get("change_pct") or 0) >= 0) else "defensive") + \
+        f" — breadth was {breadth['adv']} advancers vs {breadth['decl']} decliners across the tracked universe."
+    drivers = "\n".join(f"- **{s['name']}** {fmt_pct(s['change_pct'])}" for s in sectors[:3]) if sectors else ""
+    return {"summary": summary, "verdict": tone, "notes": drivers}
+
+
+def closing_bell_narrative(indices, sectors, gainers, losers, glance, breadth, sources):
+    if not os.getenv("OPENAI_API_KEY"):
+        return _closing_fallback(indices, sectors, breadth)
+    src_lines = "\n".join(f"[{s['n']}] {s['title']} — {s['url']}" for s in sources)
+    sys = (
+        "You are a market strategist writing the end-of-day 'Closing Bell' wrap for U.S. equities. "
+        "Use ONLY the data provided — never invent numbers. Cite headline drivers as [n]. "
+        "Output EXACTLY these three sections with these literal markers:\n"
+        "[[SUMMARY]] (2-3 short paragraphs: how the major indices closed and what drove the tape)\n"
+        "[[VERDICT]] (a one-paragraph 'Market Tone': risk-on/risk-off and why, referencing breadth/VIX)\n"
+        "[[NOTES]] (3-4 '- **driver** — ...' bullets of the day's key drivers). Under 430 words. "
+        "Markdown only: **bold**, '- ' bullets, [n] citations."
+    )
+    user = f"DATA:\n{_closing_data_context(indices, sectors, gainers, losers, glance)}\n\nNUMBERED SOURCES:\n{src_lines}"
+    try:
+        import llm_router
+        resp = llm_router.chat_completion(
+            model=NARRATIVE_MODEL,
+            messages=[{"role": "system", "content": sys}, {"role": "user", "content": user}],
+            temperature=0.5, max_tokens=1000,
+        )
+        return _split_sections(resp.choices[0].message.content or "")
+    except Exception:
+        return _closing_fallback(indices, sectors, breadth)
+
+
+def build_closing_bell_context(universe_raw=None, recipient=""):
+    movers_syms = parse_symbols(universe_raw) if universe_raw else list(DEFAULT_MOVERS)
+    # parse_symbols caps at MAX_TICKERS; for the movers universe we want the full list.
+    if universe_raw:
+        movers_syms = [t for t in re.split(r"[\s,]+", universe_raw.upper()) if t][:40]
+
+    names = {**dict(INDICES), **{s: l for s, l, _ in GAUGES},
+             **{s: l for s, l, _ in COMMODITIES}, **dict(SECTORS)}
+    all_syms = list(dict.fromkeys(
+        [s for s, _ in INDICES] + [s for s, _, _ in GAUGES] +
+        [s for s, _, _ in COMMODITIES] + [s for s, _ in SECTORS] + movers_syms))
+    quotes = batch_quotes(all_syms, names)
+
+    indices = [quotes[s] for s, _ in INDICES]
+
+    glance = []
+    for sym, label, kind in GAUGES + COMMODITIES:
+        q = quotes.get(sym, {})
+        val = q.get("price")
+        glance.append({
+            "label": label,
+            "value_text": (fmt_money(val) if kind == "money" else fmt_num(val)) if val is not None else "—",
+            "change_pct": q.get("change_pct"),
+            "up": (q.get("change_pct") or 0) >= 0,
+        })
+
+    # Sectors sorted best -> worst with diverging bar geometry
+    sectors = []
+    for sym, label in SECTORS:
+        q = quotes.get(sym, {})
+        if q.get("ok") and q.get("change_pct") is not None:
+            sectors.append({"symbol": sym, "name": label, "change_pct": q["change_pct"]})
+    sectors.sort(key=lambda x: x["change_pct"], reverse=True)
+    scale = max([abs(s["change_pct"]) for s in sectors] + [0.1])
+    for s in sectors:
+        s["positive"] = s["change_pct"] >= 0
+        s["width"] = min(100, round(abs(s["change_pct"]) / scale * 100))
+        s["text"] = fmt_pct(s["change_pct"])
+
+    # Movers + breadth from the universe
+    mvalid = [quotes[s] for s in movers_syms if quotes.get(s, {}).get("ok") and quotes[s].get("change_pct") is not None]
+    mvalid.sort(key=lambda x: x["change_pct"], reverse=True)
+    gainers = [{"symbol": q["symbol"], "price": q["price"], "change_pct": q["change_pct"], "text": fmt_pct(q["change_pct"])} for q in mvalid[:5]]
+    losers = [{"symbol": q["symbol"], "price": q["price"], "change_pct": q["change_pct"], "text": fmt_pct(q["change_pct"])} for q in mvalid[-5:][::-1]]
+    breadth = {"adv": sum(1 for q in mvalid if q["change_pct"] >= 0),
+               "decl": sum(1 for q in mvalid if q["change_pct"] < 0), "total": len(mvalid)}
+
+    sources = fetch_market_citations()
+    narrative = closing_bell_narrative(indices, sectors, gainers, losers, glance, breadth, sources)
+
+    base = os.getenv("REPORT_BASE_URL", "http://127.0.0.1:5000").rstrip("/")
+    view_url = f"{base}/closing-bell"
+    date_str = datetime.now().strftime("%A, %B %d, %Y")
+    spx = next((i for i in indices if i["symbol"] == "^GSPC" and i.get("ok")), None)
+    subject = f"The Closing Bell — {datetime.now().strftime('%b %d')}" + (f": S&P 500 {fmt_pct(spx['change_pct'])}" if spx else "")
+
+    return {
+        "title": "The Closing Bell",
+        "subject": subject,
+        "filename": "closing_bell_" + datetime.now().strftime("%Y%m%d") + ".html",
+        "date_str": date_str,
+        "recipient": recipient.strip(),
+        "indices": indices,
+        "glance": glance,
+        "sectors": sectors,
+        "best_sector": sectors[0] if sectors else None,
+        "worst_sector": sectors[-1] if sectors else None,
+        "gainers": gainers,
+        "losers": losers,
+        "breadth": breadth,
+        "sources": sources,
+        "summary_html": render_markdown(narrative.get("summary", "")),
+        "tone_html": render_markdown(narrative.get("verdict", "")),
+        "drivers_html": render_markdown(narrative.get("notes", "")),
+        "view_url": view_url,
+        "generated_at": datetime.now().strftime("%B %d, %Y at %I:%M %p"),
+        "fmt_money": fmt_money, "fmt_big": fmt_big, "fmt_pct": fmt_pct, "fmt_num": fmt_num,
+    }
+
+
+def plaintext_closing(ctx):
+    lines = [ctx["subject"], "", f"View online: {ctx['view_url']}", "", "Indices:"]
+    for i in ctx["indices"]:
+        if i.get("ok"):
+            lines.append(f"  {i['name']}: {fmt_money(i.get('price'))} ({fmt_pct(i.get('change_pct'))})")
+    if ctx.get("best_sector"):
+        lines.append(f"Sector leader: {ctx['best_sector']['name']} ({fmt_pct(ctx['best_sector']['change_pct'])})")
+    lines += ["", "Informational only — not investment advice."]
+    return "\n".join(lines)

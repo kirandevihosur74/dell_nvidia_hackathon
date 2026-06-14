@@ -1361,6 +1361,32 @@ def report_send(token):
     result = report_engine.send_email(to, rec['subject'], rec['html'], rec['text'])
     return jsonify(result)
 
+
+@app.route('/closing-bell', methods=['GET', 'POST'])
+def closing_bell():
+    recipient = (request.values.get('to') or '').strip()
+    universe = (request.values.get('universe') or '').strip()
+    ctx = report_engine.build_closing_bell_context(universe or None, recipient)
+    email_html = render_template('closing_bell_email.html', **ctx)
+
+    if len(email_html.encode('utf-8')) > report_engine.TRIM_THRESHOLD_BYTES:
+        ctx['gainers'] = ctx['gainers'][:3]
+        ctx['losers'] = ctx['losers'][:3]
+        email_html = render_template('closing_bell_email.html', **ctx)
+
+    token = report_engine.cache_report(email_html, ctx)
+    size_kb = report_engine.html_size_kb(email_html)
+    return render_template(
+        'report_page.html',
+        email_html=email_html,
+        token=token,
+        size_kb=size_kb,
+        clip_risk=size_kb > 100,
+        subject=ctx['subject'],
+        symbols=[ctx['title']],
+        recipient=recipient,
+    )
+
 @app.route('/api/generate_ai_trade_plan', methods=['POST'])
 def generate_ai_trade_plan():
     try:
