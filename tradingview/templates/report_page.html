@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Preview — {{ subject }}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 min-h-screen">
+  <!-- Toolbar -->
+  <header class="sticky top-0 z-10 bg-slate-900 text-slate-100 shadow-lg">
+    <div class="max-w-5xl mx-auto px-4 py-3 flex flex-wrap items-center gap-3">
+      <a href="/report" class="text-sky-400 hover:text-sky-300 font-semibold text-sm">&larr; New</a>
+      <div class="font-bold tracking-wide">{{ symbols | join(' · ') }}</div>
+
+      <!-- size / clip badge -->
+      {% if clip_risk %}
+      <span class="text-xs px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold"
+            title="Over Gmail's ~102 KB clip limit. The email has a 'View in browser' link at the very top so nothing is lost.">
+        ⚠ Email size: {{ size_kb }} KB — may be clipped by Gmail
+      </span>
+      {% else %}
+      <span class="text-xs px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-semibold"
+            title="Under Gmail's ~102 KB clip limit.">
+        ✓ Email size: {{ size_kb }} KB / 102 KB limit
+      </span>
+      {% endif %}
+
+      <div class="flex-1"></div>
+
+      <a href="/report/download/{{ token }}"
+         class="text-sm bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg font-semibold">⬇ Download .html</a>
+
+      <div class="flex items-center gap-2">
+        <input id="to" type="email" value="{{ recipient }}" placeholder="recipient@email.com"
+               class="text-sm bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 w-56">
+        <button id="sendBtn" onclick="sendReport()"
+                class="text-sm bg-sky-500 hover:bg-sky-400 px-4 py-1.5 rounded-lg font-bold">✉ Send</button>
+      </div>
+    </div>
+    <div id="status" class="hidden max-w-5xl mx-auto px-4 pb-3 text-sm"></div>
+    {% if clip_risk %}
+    <div class="bg-amber-500/10 border-t border-amber-500/30 text-amber-200 text-xs px-4 py-2 text-center">
+      This email exceeds Gmail's ~102 KB limit and may show “[Message clipped]”. A <strong>View full report in browser</strong>
+      link is pinned to the top of the email, so recipients can always open the complete version.
+    </div>
+    {% endif %}
+  </header>
+
+  <!-- Exact preview of the email -->
+  <main class="max-w-5xl mx-auto p-4">
+    <iframe srcdoc="{{ email_html }}" class="w-full bg-white rounded-xl shadow-xl border border-slate-200"
+            style="height:calc(100vh - 120px);" title="Email preview"></iframe>
+  </main>
+
+  <script>
+    async function sendReport() {
+      const to = document.getElementById('to').value.trim();
+      const status = document.getElementById('status');
+      const btn = document.getElementById('sendBtn');
+      status.classList.remove('hidden');
+      if (!to) { status.className = 'max-w-5xl mx-auto px-4 pb-3 text-sm text-amber-300'; status.textContent = 'Enter a recipient email first.'; return; }
+      btn.disabled = true; btn.textContent = 'Sending…';
+      status.className = 'max-w-5xl mx-auto px-4 pb-3 text-sm text-slate-300';
+      status.textContent = 'Sending to ' + to + '…';
+      try {
+        const res = await fetch('/report/send/{{ token }}', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ to })
+        });
+        const data = await res.json();
+        if (data.ok) {
+          status.className = 'max-w-5xl mx-auto px-4 pb-3 text-sm text-emerald-400';
+          status.textContent = '✓ Sent to ' + to + '.';
+        } else {
+          status.className = 'max-w-5xl mx-auto px-4 pb-3 text-sm text-red-400';
+          status.textContent = '✗ ' + (data.error || 'Failed to send.');
+        }
+      } catch (e) {
+        status.className = 'max-w-5xl mx-auto px-4 pb-3 text-sm text-red-400';
+        status.textContent = '✗ ' + e.message;
+      } finally {
+        btn.disabled = false; btn.textContent = '✉ Send';
+      }
+    }
+  </script>
+</body>
+</html>

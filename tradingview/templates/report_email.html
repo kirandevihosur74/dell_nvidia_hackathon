@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>{{ subject }}</title>
+  <style>
+    body { margin:0; padding:0; background:#ece9e3; -webkit-text-size-adjust:100%; }
+    table { border-collapse:collapse; }
+    img { border:0; outline:none; text-decoration:none; }
+    a { color:#9b1c1c; }
+    .page { width:700px; max-width:700px; }
+    @media only screen and (max-width:720px) {
+      .page { width:100% !important; }
+      .col { display:block !important; width:100% !important; padding:0 0 14px 0 !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background:#ece9e3;font-family:Georgia,'Times New Roman',Times,serif;color:#3f3f46;">
+  <!-- preheader (hidden) -->
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:#ece9e3;font-size:1px;line-height:1px;">
+    {{ subject }} — context-aware comparison, AI verdict and cited sources. {{ generated_at }}.
+  </div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ece9e3;">
+    <tr>
+      <td align="center" style="padding:26px 12px;">
+        <table role="presentation" class="page" width="700" cellpadding="0" cellspacing="0" style="width:700px;max-width:700px;background:#ffffff;border:1px solid #e3ddd2;">
+          <tr><td style="padding:34px 44px 40px;">
+
+            <!-- View-in-browser (so nothing is lost if Gmail clips the email) -->
+            <div style="text-align:right;font-size:11px;color:#9a9488;margin-bottom:14px;">
+              Message clipped or not rendering?
+              <a href="{{ view_url }}" style="color:#9b1c1c;text-decoration:none;">Read it in your browser &rarr;</a>
+            </div>
+
+            <!-- ===================== MASTHEAD ===================== -->
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td valign="middle">
+                  <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+                    <td style="background:#9b1c1c;width:5px;height:34px;font-size:0;line-height:0;">&nbsp;</td>
+                    <td style="padding-left:14px;font-size:26px;font-weight:700;color:#1a1a1a;letter-spacing:0.2px;">{{ title }}</td>
+                  </tr></table>
+                </td>
+                <td valign="middle" align="right" style="font-size:12px;color:#9b1c1c;line-height:1.5;">
+                  Generated {{ generated_at }}<br>
+                  {% if recipient %}Prepared for {{ recipient }}{% else %}Automated equity brief{% endif %}
+                </td>
+              </tr>
+            </table>
+            <div style="border-bottom:2px solid #1a1a1a;margin:14px 0 24px;"></div>
+
+            <!-- ===================== HEADLINE ===================== -->
+            <div style="font-size:30px;font-weight:700;color:#33312e;line-height:1.15;">
+              {{ symbols | join(' &middot; ') | safe }}
+            </div>
+            <div style="font-size:15px;color:#6b6b6b;font-style:italic;margin-top:6px;">
+              {% if question %}{{ question }}{% elif symbols|length > 1 %}A comparative valuation &amp; momentum brief{% else %}Single-name research brief{% endif %}
+            </div>
+            <!-- quote line -->
+            <div style="font-size:13px;color:#4b4b4b;margin-top:12px;">
+              {% for s in snapshots %}{% set up = (s.change_pct or 0) >= 0 %}<span style="white-space:nowrap;"><strong style="color:#1a1a1a;">{{ s.symbol }}</strong>&nbsp;{{ fmt_money(s.price) }}&nbsp;<span style="color:{{ '#15803d' if up else '#b91c1c' }};">{{ ('&#9650;' if up else '&#9660;') | safe }}{{ fmt_pct(s.change_pct)|replace('+','')|replace('-','') }}</span></span>{% if not loop.last %}<span style="color:#c9c2b6;">&nbsp;&nbsp;|&nbsp;&nbsp;</span>{% endif %}{% endfor %}
+            </div>
+
+            {% set ns = namespace(n=0) %}
+
+            <!-- ===================== 1. EXECUTIVE SUMMARY ===================== -->
+            {% set ns.n = ns.n + 1 %}
+            <div style="font-size:13px;font-style:italic;color:#6b6b6b;margin:30px 0 4px;">{{ ns.n }}. Executive Summary</div>
+            <div style="border-bottom:1px solid #d9d9d9;margin-bottom:16px;"></div>
+
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+              <td class="col" valign="top" width="{{ '58%' if verdict_html else '100%' }}" style="padding-right:{{ '22px' if verdict_html else '0' }};">
+                {{ summary_html }}
+              </td>
+              {% if verdict_html %}
+              <td class="col" valign="top" width="42%">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#faf6ef;border-left:3px solid #9b1c1c;">
+                  <tr><td style="padding:14px 16px;">
+                    <div style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:#9b1c1c;font-weight:700;margin-bottom:6px;">The Verdict</div>
+                    {{ verdict_html }}
+                  </td></tr>
+                </table>
+              </td>
+              {% endif %}
+            </tr></table>
+
+            <!-- ===================== 2. COMPARISON ===================== -->
+            {% if comparison %}
+            {% set ns.n = ns.n + 1 %}
+            <div style="font-size:13px;font-style:italic;color:#6b6b6b;margin:30px 0 4px;">{{ ns.n }}. Side-by-Side Comparison</div>
+            <div style="border-bottom:1px solid #d9d9d9;margin-bottom:14px;"></div>
+
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;border-top:2px solid #1a1a1a;border-bottom:2px solid #1a1a1a;">
+              <tr>
+                <td style="padding:9px 10px 9px 0;font-weight:700;color:#1a1a1a;border-bottom:1px solid #1a1a1a;">Metric</td>
+                {% for s in snapshots %}
+                <td align="right" style="padding:9px 10px;font-weight:700;color:#1a1a1a;border-bottom:1px solid #1a1a1a;">{{ s.symbol }}</td>
+                {% endfor %}
+              </tr>
+              {% for row in comparison %}
+              <tr>
+                <td style="padding:8px 10px 8px 0;color:#5b5b5b;border-bottom:1px solid #f0ece3;">{{ row.label }}</td>
+                {% for cell in row.cells %}
+                <td align="right" style="padding:8px 10px;border-bottom:1px solid #f0ece3;{% if cell.best %}color:#9b1c1c;font-weight:700;{% else %}color:#2b2b2b;{% endif %}">
+                  {{ cell.text }}{% if cell.best %}&nbsp;<span style="font-size:9px;">&#9650;</span>{% endif %}
+                </td>
+                {% endfor %}
+              </tr>
+              {% endfor %}
+            </table>
+            <div style="font-size:11px;font-style:italic;color:#9a9488;margin-top:7px;">
+              <span style="color:#9b1c1c;">&#9650;</span> best in row — lower is better for P/E &amp; Price/Sales; higher for growth, margins, yield, returns &amp; upside.
+            </div>
+            {% endif %}
+
+            <!-- ===================== 3. DEEP DIVES ===================== -->
+            {% set ns.n = ns.n + 1 %}
+            <div style="font-size:13px;font-style:italic;color:#6b6b6b;margin:30px 0 4px;">{{ ns.n }}. Company Deep Dives</div>
+            <div style="border-bottom:1px solid #d9d9d9;margin-bottom:8px;"></div>
+
+            {% for s in snapshots %}
+            <div style="padding:16px 0 6px;{% if not loop.last %}border-bottom:1px solid #efeae0;{% endif %}">
+              {% if not s.ok %}
+                <div style="font-size:20px;font-weight:700;color:#1a1a1a;">{{ s.symbol }}</div>
+                <div style="font-size:13px;color:#b91c1c;margin-top:6px;font-style:italic;">Data could not be retrieved for this ticker{% if s.error %} ({{ s.error|truncate(120) }}){% endif %}.</div>
+              {% else %}
+              {% set up = (s.change_pct or 0) >= 0 %}
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+                <td valign="bottom">
+                  <span style="font-size:22px;font-weight:700;color:#1a1a1a;">{{ s.symbol }}</span>
+                  <span style="font-size:15px;color:#6b6b6b;">&nbsp; {{ s.name }}</span>
+                  <div style="font-size:12px;color:#9a9488;font-style:italic;margin-top:2px;">{{ s.sector }} &middot; {{ s.industry }}</div>
+                </td>
+                <td valign="bottom" align="right" style="white-space:nowrap;">
+                  <span style="font-size:20px;font-weight:700;color:#1a1a1a;">{{ fmt_money(s.price) }}</span>
+                  <span style="font-size:12px;color:{{ '#15803d' if up else '#b91c1c' }};">&nbsp;{{ fmt_pct(s.change_pct) }}</span>
+                </td>
+              </tr></table>
+
+              {% if s.summary %}
+              <p style="font-size:13.5px;line-height:1.7;color:#3f3f46;text-align:justify;margin:12px 0 14px;">{{ s.summary | truncate(520) }}</p>
+              {% endif %}
+
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+                <!-- valuation: booktabs mini-table -->
+                <td class="col" valign="top" width="48%" style="padding-right:18px;">
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:12.5px;border-top:1.5px solid #1a1a1a;">
+                    {% for lbl, val in [
+                      ('Market cap', fmt_big(s.market_cap)),
+                      ('P/E (TTM)', fmt_num(s.pe)),
+                      ('Forward P/E', fmt_num(s.forward_pe)),
+                      ('Price / Sales', fmt_num(s.ps)),
+                      ('Price / Book', fmt_num(s.pb)),
+                      ('Beta', fmt_num(s.beta)),
+                      ('Profit margin', fmt_pct(s.profit_margin_pct, 2, False)),
+                      ('Revenue growth', fmt_pct(s.revenue_growth_pct)),
+                      ('Dividend yield', fmt_pct(s.div_yield_pct, 2, False)),
+                    ] %}
+                    <tr>
+                      <td style="padding:5px 0;color:#6b6b6b;border-bottom:1px solid #f0ece3;">{{ lbl }}</td>
+                      <td align="right" style="padding:5px 0;color:#1a1a1a;font-weight:700;border-bottom:1px solid #f0ece3;">{{ val }}</td>
+                    </tr>
+                    {% endfor %}
+                  </table>
+                </td>
+                <!-- visuals: bordered panel w/ centered maroon caption (LaTeX figure feel) -->
+                <td class="col" valign="top" width="52%">
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e3ddd2;">
+                    <tr><td style="padding:12px 14px 14px;">
+                      <div style="text-align:center;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#9b1c1c;font-weight:700;margin-bottom:10px;">Price Trend &amp; Returns</div>
+
+                      {% if s.spark_bars %}
+                      <table role="presentation" cellpadding="0" cellspacing="0" style="height:46px;margin:0 auto 12px;"><tr style="vertical-align:bottom;">
+                        {% for b in s.spark_bars %}
+                        <td style="padding:0 1px;vertical-align:bottom;"><div style="width:9px;height:{{ b.h }}px;background:{{ b.color }};"></div></td>
+                        {% endfor %}
+                      </tr></table>
+                      <div style="text-align:center;font-size:10px;color:#9a9488;font-style:italic;margin-bottom:12px;">12-month price</div>
+                      {% endif %}
+
+                      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                        {% for p in s.perf_bars %}
+                        <tr>
+                          <td style="width:24px;font-size:11px;color:#6b6b6b;padding:3px 0;">{{ p.label }}</td>
+                          <td style="padding:3px 6px;">
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f0ece3;"><tr>
+                              <td style="width:{{ p.width }}%;"><div style="height:8px;background:{{ p.color }};"></div></td><td></td>
+                            </tr></table>
+                          </td>
+                          <td align="right" style="width:50px;font-size:12px;font-weight:700;color:{{ p.color }};padding:3px 0;">{{ p.text }}</td>
+                        </tr>
+                        {% endfor %}
+                      </table>
+
+                      {% if s.week52_pos is not none %}
+                      <div style="font-size:10px;color:#9a9488;font-style:italic;margin:10px 0 4px;">52-week range</div>
+                      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="height:9px;background:#e6e1d6;"><tr>
+                        <td style="width:{{ s.week52_pos }}%;"></td>
+                        <td style="width:7px;"><div style="width:7px;height:15px;background:#9b1c1c;margin-top:-3px;"></div></td>
+                        <td></td>
+                      </tr></table>
+                      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:3px;font-size:10px;color:#9a9488;"><tr>
+                        <td>{{ fmt_money(s.week52_low) }}</td><td align="right">{{ fmt_money(s.week52_high) }}</td>
+                      </tr></table>
+                      {% endif %}
+                    </td></tr>
+                  </table>
+                </td>
+              </tr></table>
+
+              {% if s.target_mean %}
+              <div style="margin-top:12px;font-size:12.5px;color:#5b5b5b;">
+                Analyst mean target <strong style="color:#1a1a1a;">{{ fmt_money(s.target_mean) }}</strong>{% if s.upside_pct is not none %} &middot; implied upside <strong style="color:{{ '#15803d' if (s.upside_pct or 0) >= 0 else '#b91c1c' }};">{{ fmt_pct(s.upside_pct) }}</strong>{% endif %} &middot; consensus rating <strong style="color:#1a1a1a;">{{ s.recommendation }}</strong>
+              </div>
+              {% endif %}
+
+              {% set news = per_symbol_news.get(s.symbol) %}
+              {% if news %}
+              <div style="margin-top:12px;">
+                <div style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#9a9488;font-weight:700;margin-bottom:6px;">Recent News</div>
+                {% for item in news %}
+                <div style="font-size:13px;line-height:1.5;color:#3f3f46;margin-bottom:7px;">
+                  <a href="{{ item.url }}" style="color:#9b1c1c;text-decoration:none;border-bottom:1px dotted #c9a0a0;">{{ item.title }}</a><sup><a href="#src-{{ item.n }}" style="color:#9b1c1c;text-decoration:none;">[{{ item.n }}]</a></sup>{% if item.summary %}<span style="color:#6b6b6b;"> — {{ item.summary | truncate(160) }}</span>{% endif %}
+                </div>
+                {% endfor %}
+              </div>
+              {% endif %}
+
+              {% endif %}
+            </div>
+            {% endfor %}
+
+            <!-- ===================== ANALYST NOTES ===================== -->
+            {% if notes_html %}
+            {% set ns.n = ns.n + 1 %}
+            <div style="font-size:13px;font-style:italic;color:#6b6b6b;margin:28px 0 4px;">{{ ns.n }}. Analyst Notes</div>
+            <div style="border-bottom:1px solid #d9d9d9;margin-bottom:14px;"></div>
+            {{ notes_html }}
+            {% endif %}
+
+            <!-- ===================== SOURCES ===================== -->
+            {% set ns.n = ns.n + 1 %}
+            <div style="font-size:13px;font-style:italic;color:#6b6b6b;margin:28px 0 4px;">{{ ns.n }}. Sources &amp; References</div>
+            <div style="border-bottom:1px solid #d9d9d9;margin-bottom:12px;"></div>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:12px;">
+              {% for src in sources %}
+              <tr id="src-{{ src.n }}">
+                <td valign="top" style="padding:4px 8px 4px 0;color:#9b1c1c;font-weight:700;width:26px;">[{{ src.n }}]</td>
+                <td valign="top" style="padding:4px 0;color:#3f3f46;">
+                  <a href="{{ src.url }}" style="color:#1a1a1a;text-decoration:none;border-bottom:1px dotted #b9b3a6;">{{ src.title }}</a>
+                  <span style="color:#9a9488;font-style:italic;"> &middot; {{ src.source }}</span>
+                </td>
+              </tr>
+              {% endfor %}
+            </table>
+
+            <!-- ===================== COLOPHON ===================== -->
+            <div style="border-top:2px solid #1a1a1a;margin:26px 0 12px;"></div>
+            <div style="font-size:10.5px;line-height:1.6;color:#9a9488;font-style:italic;">
+              This research brief is generated automatically for informational purposes only and is <strong style="color:#6b6b6b;">not investment advice</strong>.
+              Figures are sourced from Yahoo Finance and the cited links above and may be delayed or inaccurate. Always do your own research.
+            </div>
+            <div style="font-size:11px;margin-top:10px;">
+              <a href="{{ view_url }}" style="color:#9b1c1c;text-decoration:none;">Read this report online &rarr;</a>
+              <span style="color:#c9c2b6;">&nbsp;&middot;&nbsp;</span>
+              <span style="color:#9a9488;">Optimum Vertex AI &middot; {{ generated_at }}</span>
+            </div>
+
+          </td></tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

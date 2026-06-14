@@ -1,6 +1,6 @@
 #app.py
 
-from flask import Flask, render_template, jsonify, send_file, request, make_response
+from flask import Flask, render_template, jsonify, send_file, request, make_response, redirect, url_for, abort, Response
 from flask_cors import CORS
 import yfinance as yf
 import pandas as pd
@@ -24,6 +24,7 @@ from datetime import datetime, timedelta
 from curl_cffi import requests as curl_requests
 import yfinance_cookie_patch
 from pymongo import MongoClient
+import report_engine
 
 # Apply monkey patch for yfinance
 yfinance_cookie_patch.patch_yfdata_cookie_basic()
@@ -1295,6 +1296,70 @@ def macro():
 @app.route('/fundamental')
 def fundamental():
     return render_template('fundamental.html')
+
+
+# ---------------------------------------------------------------------------
+# Email-deliverable Jinja stock research report
+# ---------------------------------------------------------------------------
+@app.route('/report')
+def report_form():
+    return render_template('report_form.html')
+
+
+@app.route('/report/view', methods=['GET', 'POST'])
+def report_view():
+    symbols = (request.values.get('symbols') or '').strip()
+    question = (request.values.get('q') or '').strip()
+    recipient = (request.values.get('to') or '').strip()
+    if not symbols:
+        return redirect(url_for('report_form'))
+
+    ctx = report_engine.build_report_context(symbols, question, recipient)
+    email_html = render_template('report_email.html', **ctx)
+
+    # Clipping guard: if it creeps over the trim threshold, shrink and re-render once.
+    if len(email_html.encode('utf-8')) > report_engine.TRIM_THRESHOLD_BYTES:
+        for s in ctx['snapshots']:
+            if s.get('summary'):
+                s['summary'] = s['summary'].split('. ')[0][:200] + '.'
+        ctx['per_symbol_news'] = {k: v[:1] for k, v in ctx['per_symbol_news'].items()}
+        email_html = render_template('report_email.html', **ctx)
+
+    token = report_engine.cache_report(email_html, ctx)
+    size_kb = report_engine.html_size_kb(email_html)
+    return render_template(
+        'report_page.html',
+        email_html=email_html,
+        token=token,
+        size_kb=size_kb,
+        clip_risk=size_kb > 100,
+        subject=ctx['subject'],
+        symbols=ctx['symbols'],
+        recipient=recipient,
+    )
+
+
+@app.route('/report/download/<token>')
+def report_download(token):
+    rec = report_engine.get_cached(token)
+    if not rec:
+        abort(404)
+    return Response(
+        rec['html'],
+        mimetype='text/html',
+        headers={'Content-Disposition': f'attachment; filename="{rec["filename"]}"'},
+    )
+
+
+@app.route('/report/send/<token>', methods=['POST'])
+def report_send(token):
+    rec = report_engine.get_cached(token)
+    if not rec:
+        return jsonify({'ok': False, 'error': 'Report expired — please regenerate.'}), 404
+    payload = request.get_json(silent=True) or request.form
+    to = (payload.get('to') or '').strip()
+    result = report_engine.send_email(to, rec['subject'], rec['html'], rec['text'])
+    return jsonify(result)
 
 @app.route('/api/generate_ai_trade_plan', methods=['POST'])
 def generate_ai_trade_plan():

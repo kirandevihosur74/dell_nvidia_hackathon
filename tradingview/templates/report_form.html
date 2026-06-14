@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Equity Research Brief — Generator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background: radial-gradient(1200px 600px at 50% -10%, #1e293b 0%, #0b1220 55%); }
+  </style>
+</head>
+<body class="min-h-screen text-slate-100 flex items-center justify-center p-6">
+  <div class="w-full max-w-xl">
+    <div class="text-center mb-8">
+      <div class="text-xs tracking-[0.2em] uppercase text-sky-400 font-bold">Optimum Vertex AI</div>
+      <h1 class="text-3xl md:text-4xl font-extrabold mt-2">Equity Research Brief</h1>
+      <p class="text-slate-400 mt-3">Generate a beautiful, email-ready stock report — context-aware AI verdict,
+        side-by-side comparison and cited sources.</p>
+    </div>
+
+    <form method="POST" action="/report/view" class="bg-slate-900/70 backdrop-blur border border-slate-700/60 rounded-2xl p-6 space-y-5 shadow-2xl">
+      <div>
+        <label class="block text-sm font-semibold text-slate-300 mb-1">Tickers to compare</label>
+        <input name="symbols" required value="AAPL, MSFT, NVDA"
+               class="w-full bg-slate-950/60 border border-slate-700 rounded-lg px-4 py-3 text-lg font-semibold tracking-wide placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500"
+               placeholder="AAPL, MSFT, NVDA">
+        <p class="text-xs text-slate-500 mt-1">Up to 4 symbols, separated by commas or spaces.</p>
+      </div>
+
+      <div>
+        <label class="block text-sm font-semibold text-slate-300 mb-1">Question for the analyst <span class="text-slate-500 font-normal">(optional)</span></label>
+        <input name="q"
+               class="w-full bg-slate-950/60 border border-slate-700 rounded-lg px-4 py-3 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500"
+               placeholder="e.g. Which is the better long-term buy and why?">
+        <p class="text-xs text-slate-500 mt-1">The AI answers this directly, grounded in the data, with [n] citations.</p>
+      </div>
+
+      <div>
+        <label class="block text-sm font-semibold text-slate-300 mb-1">Send to <span class="text-slate-500 font-normal">(optional — you can also send from the preview)</span></label>
+        <input name="to" type="email"
+               class="w-full bg-slate-950/60 border border-slate-700 rounded-lg px-4 py-3 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500"
+               placeholder="you@example.com">
+      </div>
+
+      <button type="submit"
+              class="w-full bg-sky-500 hover:bg-sky-400 transition text-white font-bold py-3 rounded-lg text-lg shadow-lg shadow-sky-500/20">
+        Generate report &rarr;
+      </button>
+    </form>
+
+    <p class="text-center text-xs text-slate-600 mt-6">
+      Built to stay under Gmail's ~102&nbsp;KB clip limit. Not investment advice.
+    </p>
+  </div>
+</body>
+</html>
