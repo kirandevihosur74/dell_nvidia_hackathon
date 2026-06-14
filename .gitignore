@@ -27,3 +27,4 @@ tradingview/video/media/
 *.crt
 tradingview/video/tts_models/
 tradingview/charts/
+tradingview/logs/

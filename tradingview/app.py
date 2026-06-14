@@ -116,6 +116,107 @@ POLYGON_API_KEY = os.getenv('POLYGON_API_KEY')
 app = Flask(__name__)
 CORS(app)
 
+# ---------------------------------------------------------------------------
+# API logging — covers EVERY endpoint via Flask hooks, so you can watch data
+# flow client->backend (request + body) and backend->client (status, timing,
+# size), and capture errors with tracebacks. Logs to console AND logs/api.log
+# (rotating). Tune with API_LOG_LEVEL / API_LOG_BODY env vars.
+# ---------------------------------------------------------------------------
+import logging
+import time
+import uuid
+from logging.handlers import RotatingFileHandler
+from werkzeug.exceptions import HTTPException
+
+_LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
+os.makedirs(_LOG_DIR, exist_ok=True)
+
+api_logger = logging.getLogger("api")
+api_logger.setLevel(getattr(logging, os.getenv("API_LOG_LEVEL", "INFO").upper(), logging.INFO))
+if not api_logger.handlers:
+    _fmt = logging.Formatter("%(asctime)s %(levelname)s %(message)s", "%H:%M:%S")
+    _file = RotatingFileHandler(
+        os.path.join(_LOG_DIR, "api.log"), maxBytes=5_000_000, backupCount=5
+    )
+    _file.setFormatter(_fmt)
+    _console = logging.StreamHandler()
+    _console.setFormatter(_fmt)
+    api_logger.addHandler(_file)
+    api_logger.addHandler(_console)
+    api_logger.propagate = False
+
+# Large/binary fields are logged by size only, never by content (keeps logs
+# readable when the client uploads base64 images / audio).
+_LOG_BODY = os.getenv("API_LOG_BODY", "true").lower() in ("1", "true", "yes")
+_REDACT_FIELDS = {"image", "images", "audio", "file", "screenshot", "photo"}
+_MAX_BODY_LOG = 900
+
+
+def _summarize_body():
+    """Compact, safe one-line summary of the request body for logging."""
+    try:
+        if request.is_json:
+            data = request.get_json(silent=True)
+            if isinstance(data, dict):
+                safe = {}
+                for k, v in data.items():
+                    if k in _REDACT_FIELDS or (isinstance(v, str) and len(v) > 300):
+                        n = len(v) if hasattr(v, "__len__") else "?"
+                        safe[k] = f"<{type(v).__name__}:{n}>"
+                    else:
+                        safe[k] = v
+                s = json.dumps(safe, default=str)
+            else:
+                s = json.dumps(data, default=str)
+        elif request.form:
+            s = json.dumps({k: (v[:120]) for k, v in request.form.items()})
+        else:
+            s = ""
+    except Exception as exc:  # noqa: BLE001
+        s = f"<unreadable body: {exc}>"
+    return (s[:_MAX_BODY_LOG] + "…") if len(s) > _MAX_BODY_LOG else s
+
+
+@app.before_request
+def _log_request_start():
+    request._rid = uuid.uuid4().hex[:8]
+    request._t0 = time.time()
+    # Behind Tailscale Serve the real client shows up in these headers.
+    client = (request.headers.get("X-Forwarded-For")
+              or request.headers.get("Tailscale-User-Login")
+              or request.remote_addr)
+    msg = f"[{request._rid}] --> {request.method} {request.full_path.rstrip('?')} from {client}"
+    if _LOG_BODY and request.method in ("POST", "PUT", "PATCH"):
+        body = _summarize_body()
+        if body:
+            msg += f"  body={body}"
+    api_logger.info(msg)
+
+
+@app.after_request
+def _log_request_end(response):
+    try:
+        rid = getattr(request, "_rid", "--------")
+        dur = (time.time() - getattr(request, "_t0", time.time())) * 1000
+        size = response.calculate_content_length()
+        line = (f"[{rid}] <-- {response.status_code} {request.method} "
+                f"{request.path}  {dur:.0f}ms  {size if size is not None else '?'}b")
+        (api_logger.warning if response.status_code >= 400 else api_logger.info)(line)
+    except Exception:  # noqa: BLE001 - logging must never break a response
+        pass
+    return response
+
+
+@app.errorhandler(Exception)
+def _log_unhandled(e):
+    rid = getattr(request, "_rid", "--------")
+    if isinstance(e, HTTPException):
+        api_logger.warning(f"[{rid}] !! {e.code} {request.method} {request.path}: {e.name}")
+        return e
+    api_logger.exception(f"[{rid}] !! UNHANDLED {request.method} {request.path}: {e}")
+    return jsonify({"error": str(e)}), 500
+
+
 # User/Subscription data now lives in Postgres (see pg_store.py). Connection is
 # lazy and guarded, so the app still boots if the DB isn't configured yet.
 import pg_store
