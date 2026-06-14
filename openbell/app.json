@@ -1,0 +1,83 @@
+{
+  "expo": {
+    "name": "OpenBell",
+    "slug": "asana-copilot",
+    "owner": "famoruwa",
+    "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "scheme": "asana-copilot",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.asanacopilot.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSSpeechRecognitionUsageDescription": "Used for voice commands to manage Asana tasks",
+        "NSMicrophoneUsageDescription": "Used for voice input and live stream audio capture",
+        "NSCameraUsageDescription": "Used for live streaming with camera capture",
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSLocalNetworkUsageDescription": "OpenBell discovers OpenClaw Gateways on your local network",
+        "NSBonjourServices": [
+          "_openclaw-gw._tcp"
+        ],
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true,
+          "NSAllowsLocalNetworking": true,
+          "NSExceptionDomains": {
+            "100.103.105.64": {
+              "NSExceptionAllowsInsecureHTTPLoads": true,
+              "NSIncludesSubdomains": false
+            }
+          }
+        }
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0D3B4F",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png"
+      },
+      "package": "com.asanacopilot.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-web-browser",
+      "expo-audio",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow OpenBell to access camera for live streaming"
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#3B82F6"
+        }
+      ],
+      "expo-apple-authentication",
+      "expo-video",
+      "expo-sharing",
+      "expo-image",
+      "expo-asset",
+      "expo-build-properties"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d532f28b-c1cd-499e-8b35-eb292a1241c0"
+      }
+    }
+  }
+}
