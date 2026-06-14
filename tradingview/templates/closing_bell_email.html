@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>{{ subject }}</title>
+  <style>
+    body { margin:0; padding:0; background:#ece9e3; -webkit-text-size-adjust:100%; }
+    table { border-collapse:collapse; }
+    img { border:0; outline:none; text-decoration:none; }
+    a { color:#9b1c1c; }
+    .page { width:700px; max-width:700px; }
+    @media only screen and (max-width:720px) {
+      .page { width:100% !important; }
+      .col { display:block !important; width:100% !important; padding:0 0 14px 0 !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background:#ece9e3;font-family:Georgia,'Times New Roman',Times,serif;color:#3f3f46;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:#ece9e3;font-size:1px;line-height:1px;">
+    {{ subject }} — index scoreboard, sector performance, movers and the day's market wrap. {{ generated_at }}.
+  </div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ece9e3;">
+    <tr>
+      <td align="center" style="padding:26px 12px;">
+        <table role="presentation" class="page" width="700" cellpadding="0" cellspacing="0" style="width:700px;max-width:700px;background:#ffffff;border:1px solid #e3ddd2;">
+          <tr><td style="padding:34px 44px 40px;">
+
+            <div style="text-align:right;font-size:11px;color:#9a9488;margin-bottom:14px;">
+              Message clipped or not rendering?
+              <a href="{{ view_url }}" style="color:#9b1c1c;text-decoration:none;">Read it in your browser &rarr;</a>
+            </div>
+
+            <!-- MASTHEAD -->
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td valign="middle">
+                  <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+                    <td style="background:#9b1c1c;width:5px;height:34px;font-size:0;line-height:0;">&nbsp;</td>
+                    <td style="padding-left:14px;font-size:26px;font-weight:700;color:#1a1a1a;letter-spacing:0.2px;">{{ title }}</td>
+                  </tr></table>
+                </td>
+                <td valign="middle" align="right" style="font-size:12px;color:#9b1c1c;line-height:1.55;">
+                  {{ date_str }}<br>
+                  <strong style="font-size:14px;">{{ as_of }}</strong><br>
+                  {% if recipient %}Prepared for {{ recipient }}{% else %}U.S. equities &middot; market close{% endif %}
+                </td>
+              </tr>
+            </table>
+            <div style="border-bottom:2px solid #1a1a1a;margin:14px 0 24px;"></div>
+
+            <!-- HEADLINE -->
+            <div style="font-size:30px;font-weight:700;color:#33312e;line-height:1.15;">After the Bell</div>
+            <div style="font-size:15px;color:#6b6b6b;font-style:italic;margin-top:6px;">
+              {% if breadth.total %}{{ breadth.adv }} advancers vs {{ breadth.decl }} decliners across {{ breadth.total }} tracked large caps{% else %}Daily U.S. market wrap{% endif %}
+            </div>
+
+            {% set ns = namespace(n=0) %}
+
+            <!-- 1. MARKET WRAP -->
+            {% set ns.n = ns.n + 1 %}
+            <div style="font-size:13px;font-style:italic;color:#6b6b6b;margin:28px 0 4px;">{{ ns.n }}. Market Wrap</div>
+            <div style="border-bottom:1px solid #d9d9d9;margin-bottom:16px;"></div>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+              <td class="col" valign="top" width="{{ '58%' if tone_html else '100%' }}" style="padding-right:{{ '22px' if tone_html else '0' }};">
+                {{ summary_html }}
+              </td>
+              {% if tone_html %}
+              <td class="col" valign="top" width="42%">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#faf6ef;border-left:3px solid #9b1c1c;">
+                  <tr><td style="padding:14px 16px;">
+                    <div style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:#9b1c1c;font-weight:700;margin-bottom:6px;">Market Tone</div>
+                    {{ tone_html }}
+                  </td></tr>
+                </table>
+              </td>
+              {% endif %}
+            </tr></table>
+
+            <!-- 2. INDEX SCOREBOARD -->
+            {% set ns.n = ns.n + 1 %}
+            <div style="font-size:13px;font-style:italic;color:#6b6b6b;margin:30px 0 4px;">{{ ns.n }}. Index Scoreboard</div>
+            <div style="border-bottom:1px solid #d9d9d9;margin-bottom:14px;"></div>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+              {% for i in indices %}
+              {% set up = (i.change_pct or 0) >= 0 %}
+              <td class="col" valign="top" width="25%" style="padding:0 6px;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e3ddd2;">
+                  <tr><td style="padding:12px 12px 10px;">
+                    <div style="font-size:12px;color:#6b6b6b;height:28px;">{{ i.name }}</div>
+                    {% if i.ok %}
+                    <div style="font-size:18px;font-weight:700;color:#1a1a1a;">{{ fmt_num(i.price, 0) if i.price > 1000 else fmt_num(i.price) }}</div>
+                    <div style="font-size:13px;font-weight:700;color:{{ '#15803d' if up else '#b91c1c' }};">{{ fmt_pct(i.change_pct) }}</div>
+                    {% if i.spark_bars %}
+                    <table role="presentation" cellpadding="0" cellspacing="0" style="height:30px;margin-top:8px;"><tr style="vertical-align:bottom;">
+                      {% for b in i.spark_bars %}<td style="padding:0 1px;vertical-align:bottom;"><div style="width:6px;height:{{ b.h }}px;background:{{ b.color }};"></div></td>{% endfor %}
+                    </tr></table>
+                    {% endif %}
+                    {% else %}
+                    <div style="font-size:12px;color:#b91c1c;font-style:italic;">unavailable</div>
+                    {% endif %}
+                  </td></tr>
+                </table>
+              </td>
+              {% endfor %}
+            </tr></table>
+
+            <!-- 3. MARKETS AT A GLANCE -->
+            {% set ns.n = ns.n + 1 %}
+            <div style="font-size:13px;font-style:italic;color:#6b6b6b;margin:30px 0 4px;">{{ ns.n }}. Markets at a Glance</div>
+            <div style="border-bottom:1px solid #d9d9d9;margin-bottom:14px;"></div>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;border-top:2px solid #1a1a1a;border-bottom:2px solid #1a1a1a;">
+              <tr>
+                <td style="padding:8px 10px 8px 0;font-weight:700;color:#1a1a1a;border-bottom:1px solid #1a1a1a;">Gauge</td>
+                <td align="right" style="padding:8px 10px;font-weight:700;color:#1a1a1a;border-bottom:1px solid #1a1a1a;">Level</td>
+                <td align="right" style="padding:8px 0 8px 10px;font-weight:700;color:#1a1a1a;border-bottom:1px solid #1a1a1a;">Change</td>
+              </tr>
+              {% for g in glance %}
+              <tr>
+                <td style="padding:7px 10px 7px 0;color:#5b5b5b;border-bottom:1px solid #f0ece3;">{{ g.label }}</td>
+                <td align="right" style="padding:7px 10px;color:#1a1a1a;font-weight:700;border-bottom:1px solid #f0ece3;">{{ g.value_text }}</td>
+                <td align="right" style="padding:7px 0 7px 10px;font-weight:700;color:{{ '#15803d' if g.up else '#b91c1c' }};border-bottom:1px solid #f0ece3;">{{ fmt_pct(g.change_pct) }}</td>
+              </tr>
+              {% endfor %}
+            </table>
+
+            <!-- 4. SECTOR PERFORMANCE (diverging bars) -->
+            {% if sectors %}
+            {% set ns.n = ns.n + 1 %}
+            <div style="font-size:13px;font-style:italic;color:#6b6b6b;margin:30px 0 4px;">{{ ns.n }}. Sector Performance</div>
+            <div style="border-bottom:1px solid #d9d9d9;margin-bottom:14px;"></div>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:12.5px;">
+              {% for s in sectors %}
+              <tr>
+                <td width="150" style="padding:4px 10px 4px 0;color:#3f3f46;">{{ s.name }}</td>
+                <td style="padding:4px 0;">
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+                    <td width="50%">
+                      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+                        <td></td>
+                        {% if not s.positive %}<td width="{{ s.width }}%"><div style="height:11px;background:#dc2626;"></div></td>{% endif %}
+                      </tr></table>
+                    </td>
+                    <td width="1" style="background:#cfc8ba;font-size:0;line-height:0;">&nbsp;</td>
+                    <td width="50%">
+                      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+                        {% if s.positive %}<td width="{{ s.width }}%"><div style="height:11px;background:#16a34a;"></div></td>{% endif %}
+                        <td></td>
+                      </tr></table>
+                    </td>
+                  </tr></table>
+                </td>
+                <td width="56" align="right" style="padding:4px 0 4px 10px;font-weight:700;color:{{ '#15803d' if s.positive else '#b91c1c' }};">{{ s.text }}</td>
+              </tr>
+              {% endfor %}
+            </table>
+            {% if best_sector and worst_sector %}
+            <div style="font-size:11px;font-style:italic;color:#9a9488;margin-top:8px;">
+              Leader: <span style="color:#15803d;">{{ best_sector.name }} {{ best_sector.text }}</span>
+              &nbsp;&middot;&nbsp; Laggard: <span style="color:#b91c1c;">{{ worst_sector.name }} {{ worst_sector.text }}</span>
+            </div>
+            {% endif %}
+            {% endif %}
+
+            <!-- 5. MOVERS -->
+            {% if gainers or losers %}
+            {% set ns.n = ns.n + 1 %}
+            <div style="font-size:13px;font-style:italic;color:#6b6b6b;margin:30px 0 4px;">{{ ns.n }}. Notable Movers</div>
+            <div style="border-bottom:1px solid #d9d9d9;margin-bottom:14px;"></div>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+              <td class="col" valign="top" width="50%" style="padding-right:14px;">
+                <div style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#15803d;font-weight:700;margin-bottom:6px;">Top Gainers</div>
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;border-top:1.5px solid #1a1a1a;">
+                  {% for g in gainers %}
+                  <tr>
+                    <td style="padding:6px 0;font-weight:700;color:#1a1a1a;border-bottom:1px solid #f0ece3;">{{ g.symbol }}</td>
+                    <td align="right" style="padding:6px 10px;color:#5b5b5b;border-bottom:1px solid #f0ece3;">{{ fmt_money(g.price) }}</td>
+                    <td align="right" style="padding:6px 0;font-weight:700;color:#15803d;border-bottom:1px solid #f0ece3;">{{ g.text }}</td>
+                  </tr>
+                  {% endfor %}
+                </table>
+              </td>
+              <td class="col" valign="top" width="50%" style="padding-left:14px;">
+                <div style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#b91c1c;font-weight:700;margin-bottom:6px;">Top Laggards</div>
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;border-top:1.5px solid #1a1a1a;">
+                  {% for g in losers %}
+                  <tr>
+                    <td style="padding:6px 0;font-weight:700;color:#1a1a1a;border-bottom:1px solid #f0ece3;">{{ g.symbol }}</td>
+                    <td align="right" style="padding:6px 10px;color:#5b5b5b;border-bottom:1px solid #f0ece3;">{{ fmt_money(g.price) }}</td>
+                    <td align="right" style="padding:6px 0;font-weight:700;color:#b91c1c;border-bottom:1px solid #f0ece3;">{{ g.text }}</td>
+                  </tr>
+                  {% endfor %}
+                </table>
+              </td>
+            </tr></table>
+            {% endif %}
+
+            <!-- DRIVERS -->
+            {% if drivers_html %}
+            {% set ns.n = ns.n + 1 %}
+            <div style="font-size:13px;font-style:italic;color:#6b6b6b;margin:28px 0 4px;">{{ ns.n }}. Key Drivers</div>
+            <div style="border-bottom:1px solid #d9d9d9;margin-bottom:14px;"></div>
+            {{ drivers_html }}
+            {% endif %}
+
+            <!-- SOURCES -->
+            {% set ns.n = ns.n + 1 %}
+            <div style="font-size:13px;font-style:italic;color:#6b6b6b;margin:28px 0 4px;">{{ ns.n }}. Sources &amp; References</div>
+            <div style="border-bottom:1px solid #d9d9d9;margin-bottom:12px;"></div>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:12px;">
+              {% for src in sources %}
+              <tr id="src-{{ src.n }}">
+                <td valign="top" style="padding:4px 8px 4px 0;color:#9b1c1c;font-weight:700;width:26px;">[{{ src.n }}]</td>
+                <td valign="top" style="padding:4px 0;color:#3f3f46;">
+                  <a href="{{ src.url }}" style="color:#1a1a1a;text-decoration:none;border-bottom:1px dotted #b9b3a6;">{{ src.title }}</a>
+                  <span style="color:#9a9488;font-style:italic;"> &middot; {{ src.source }}</span>
+                </td>
+              </tr>
+              {% endfor %}
+            </table>
+
+            <!-- COLOPHON -->
+            <div style="border-top:2px solid #1a1a1a;margin:26px 0 12px;"></div>
+            <div style="font-size:10.5px;line-height:1.6;color:#9a9488;font-style:italic;">
+              The Closing Bell is generated automatically for informational purposes only and is <strong style="color:#6b6b6b;">not investment advice</strong>.
+              Figures are sourced from Yahoo Finance and the cited links above and may be delayed or inaccurate.
+            </div>
+            <div style="font-size:11px;margin-top:10px;">
+              <a href="{{ view_url }}" style="color:#9b1c1c;text-decoration:none;">Read this report online &rarr;</a>
+              <span style="color:#c9c2b6;">&nbsp;&middot;&nbsp;</span>
+              <span style="color:#9a9488;">Optimum Vertex AI &middot; {{ generated_at }}</span>
+            </div>
+
+          </td></tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

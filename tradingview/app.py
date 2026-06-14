@@ -1,6 +1,6 @@
 #app.py
 
-from flask import Flask, render_template, jsonify, send_file, request, make_response
+from flask import Flask, render_template, jsonify, send_file, request, make_response, redirect, url_for, abort, Response
 from flask_cors import CORS
 import yfinance as yf
 import pandas as pd
@@ -19,11 +19,12 @@ import requests
 import re
 import traceback  # Import traceback for error logging
 from pathlib import Path  # Import Path from pathlib
+from types import SimpleNamespace
 import json
 from datetime import datetime, timedelta
 from curl_cffi import requests as curl_requests
 import yfinance_cookie_patch
-from pymongo import MongoClient
+import report_engine
 
 # Apply monkey patch for yfinance
 yfinance_cookie_patch.patch_yfdata_cookie_basic()
@@ -33,6 +34,62 @@ load_dotenv()
 
 client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 openai.api_key = os.getenv('OPENAI_API_KEY')
+
+# --- Local LLM routing (Ollama / Nemotron) ---------------------------------
+# Plain-text chat/analysis runs on a local model served by Ollama by default.
+# Vision (chart-image analysis), text-to-speech, and web-search still use
+# OpenAI, since the local text model can't do those.
+USE_LOCAL_LLM = os.getenv('USE_LOCAL_LLM', 'true').lower() in ('1', 'true', 'yes')
+LOCAL_TEXT_MODEL = os.getenv(
+    'LOCAL_TEXT_MODEL',
+    'hf.co/unsloth/Nemotron-3-Nano-30B-A3B-GGUF:Q8_0',
+)
+local_client = OpenAI(
+    base_url=os.getenv('OLLAMA_BASE_URL', 'http://127.0.0.1:11434/v1'),
+    api_key=os.getenv('OLLAMA_API_KEY', 'ollama'),
+)
+
+# Nemotron is a reasoning model: its <think> trace counts against max_tokens.
+# Keep it off by default so long answers don't get truncated. Set LOCAL_THINK=true
+# to re-enable chain-of-thought (the trace lands in message.reasoning, not content).
+LOCAL_THINK = os.getenv('LOCAL_THINK', 'false').lower() in ('1', 'true', 'yes')
+
+# The app hard-codes max_tokens=1500 everywhere (a cost cap from its gpt-4o days).
+# Running locally there's no per-token cost, so raise the floor and widen the
+# Ollama context window (which otherwise defaults to 4096) to avoid truncation.
+LOCAL_MAX_TOKENS = int(os.getenv('LOCAL_MAX_TOKENS', '8192'))
+LOCAL_NUM_CTX = int(os.getenv('LOCAL_NUM_CTX', '32768'))
+
+
+def _local_create(**kwargs):
+    extra = dict(kwargs.get('extra_body') or {})
+    if not LOCAL_THINK:
+        extra.setdefault('think', False)
+    options = dict(extra.get('options') or {})
+    options.setdefault('num_ctx', LOCAL_NUM_CTX)
+    extra['options'] = options
+    kwargs['extra_body'] = extra
+    # Lift the app's per-call cap up to our local floor (never lower it).
+    requested = kwargs.get('max_tokens')
+    if requested is None or requested < LOCAL_MAX_TOKENS:
+        kwargs['max_tokens'] = LOCAL_MAX_TOKENS
+    return local_client.chat.completions.create(**kwargs)
+
+
+# Proxy exposing the same .chat.completions.create(...) surface the call sites use.
+_local_proxy = SimpleNamespace(
+    chat=SimpleNamespace(completions=SimpleNamespace(create=_local_create))
+)
+
+
+def text_client():
+    """Client for plain-text chat completions (local Ollama by default)."""
+    return _local_proxy if USE_LOCAL_LLM else client
+
+
+def text_model(requested=None):
+    """Model name for plain-text chat completions."""
+    return LOCAL_TEXT_MODEL if USE_LOCAL_LLM else (requested or 'gpt-4o')
 
 # Define the API key for Polygon.io
 POLYGON_API_KEY = os.getenv('POLYGON_API_KEY')
@@ -45,9 +102,9 @@ POLYGON_API_KEY = os.getenv('POLYGON_API_KEY')
 app = Flask(__name__)
 CORS(app)
 
-# Use your provided connection string
-mongo_client = MongoClient(os.getenv('MONGODB_URI'))
-db = mongo_client["db"]  # Use the database name from your connection string
+# User/Subscription data now lives in Postgres (see pg_store.py). Connection is
+# lazy and guarded, so the app still boots if the DB isn't configured yet.
+import pg_store
 
 def fetch_polygon_data(ticker, multiplier, timespan, start_date, end_date):
     """
@@ -214,17 +271,18 @@ def get_market_data(symbol):
         # Get the latest volume
         volume = hist['Volume'].iloc[-1] if not hist['Volume'].empty else ticker_info.get('volume', 0)
         
-        # Build response data
+        # Build response data. Cast numpy scalars (from pandas .iloc) to native
+        # Python types so Flask's jsonify can serialize them.
         market_data = {
             "symbol": symbol,
-            "currentPrice": current_price,
-            "previousClose": previous_price,
-            "change": change,
-            "changePercent": change_percent,
-            "volume": volume,
-            "high": hist['High'].iloc[-1] if not hist['High'].empty else 0,
-            "low": hist['Low'].iloc[-1] if not hist['Low'].empty else 0,
-            "open": hist['Open'].iloc[-1] if not hist['Open'].empty else 0,
+            "currentPrice": float(current_price),
+            "previousClose": float(previous_price),
+            "change": float(change),
+            "changePercent": float(change_percent),
+            "volume": int(volume) if volume is not None else 0,
+            "high": float(hist['High'].iloc[-1]) if not hist['High'].empty else 0,
+            "low": float(hist['Low'].iloc[-1]) if not hist['Low'].empty else 0,
+            "open": float(hist['Open'].iloc[-1]) if not hist['Open'].empty else 0,
             "marketCap": ticker_info.get('marketCap', 0),
             "peRatio": ticker_info.get('trailingPE', 0),
             "dividend": ticker_info.get('dividendRate', 0),
@@ -256,9 +314,9 @@ def chatbot():
         }
         messages.insert(0, system_message)
 
-        # Call OpenAI API
-        response = openai.ChatCompletion.create(
-            model="gpt-4o",
+        # Call the text LLM (local Nemotron by default)
+        response = text_client().chat.completions.create(
+            model=text_model(),
             messages=messages,
             temperature=0.7,
             max_tokens=1500,
@@ -334,9 +392,9 @@ def generate_ai_response(system_prompt, user_message):
     This could be OpenAI, your own fine-tuned model, etc.
     """
     try:
-        # Example using OpenAI (adjust based on your actual implementation)
-        response = openai.ChatCompletion.create(
-            model="gpt-4o",
+        # Text LLM (local Nemotron by default)
+        response = text_client().chat.completions.create(
+            model=text_model(),
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_message}
@@ -557,9 +615,9 @@ Response Guidelines:
             # This should not happen with current setup but handle it anyway
             return jsonify({'error': 'Invalid specialist type'}), 400
         
-        # Call OpenAI API - make sure your API key is configured
-        response = client.chat.completions.create(
-            model="gpt-4o",  # Use your preferred model
+        # Text LLM (local Nemotron by default)
+        response = text_client().chat.completions.create(
+            model=text_model(),  # local model unless USE_LOCAL_LLM=false
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": message}
@@ -632,8 +690,8 @@ def generic_chatbot_specialist(specialist):
             context_addition += "\nYou can reference this analysis when answering questions. Users may ask about specific levels, strategies, or interpretations mentioned in the analysis above.\n"
             prompt += context_addition
 
-        response = client.chat.completions.create(
-            model="gpt-4o",
+        response = text_client().chat.completions.create(
+            model=text_model(),
             messages=[
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": message}
@@ -1296,6 +1354,123 @@ def macro():
 def fundamental():
     return render_template('fundamental.html')
 
+
+# ---------------------------------------------------------------------------
+# Email-deliverable Jinja stock research report
+# ---------------------------------------------------------------------------
+@app.route('/report')
+def report_form():
+    return render_template('report_form.html')
+
+
+@app.route('/report/view', methods=['GET', 'POST'])
+def report_view():
+    symbols = (request.values.get('symbols') or '').strip()
+    question = (request.values.get('q') or '').strip()
+    recipient = (request.values.get('to') or '').strip()
+    if not symbols:
+        return redirect(url_for('report_form'))
+
+    ctx = report_engine.build_report_context(symbols, question, recipient)
+    email_html = render_template('report_email.html', **ctx)
+
+    # Clipping guard: if it creeps over the trim threshold, shrink and re-render once.
+    if len(email_html.encode('utf-8')) > report_engine.TRIM_THRESHOLD_BYTES:
+        for s in ctx['snapshots']:
+            if s.get('summary'):
+                s['summary'] = s['summary'].split('. ')[0][:200] + '.'
+        ctx['per_symbol_news'] = {k: v[:1] for k, v in ctx['per_symbol_news'].items()}
+        email_html = render_template('report_email.html', **ctx)
+
+    token = report_engine.cache_report(email_html, ctx)
+    size_kb = report_engine.html_size_kb(email_html)
+    return render_template(
+        'report_page.html',
+        email_html=email_html,
+        token=token,
+        size_kb=size_kb,
+        clip_risk=size_kb > 100,
+        subject=ctx['subject'],
+        symbols=ctx['symbols'],
+        recipient=recipient,
+    )
+
+
+@app.route('/report/download/<token>')
+def report_download(token):
+    rec = report_engine.get_cached(token)
+    if not rec:
+        abort(404)
+    return Response(
+        rec['html'],
+        mimetype='text/html',
+        headers={'Content-Disposition': f'attachment; filename="{rec["filename"]}"'},
+    )
+
+
+@app.route('/report/send/<token>', methods=['POST'])
+def report_send(token):
+    rec = report_engine.get_cached(token)
+    if not rec:
+        return jsonify({'ok': False, 'error': 'Report expired — please regenerate.'}), 404
+    payload = request.get_json(silent=True) or request.form
+    to = (payload.get('to') or '').strip()
+    result = report_engine.send_email(to, rec['subject'], rec['html'], rec['text'])
+    return jsonify(result)
+
+
+@app.route('/closing-bell', methods=['GET', 'POST'])
+def closing_bell():
+    recipient = (request.values.get('to') or '').strip()
+    universe = (request.values.get('universe') or '').strip()
+    ctx = report_engine.build_closing_bell_context(universe or None, recipient)
+    email_html = render_template('closing_bell_email.html', **ctx)
+
+    if len(email_html.encode('utf-8')) > report_engine.TRIM_THRESHOLD_BYTES:
+        ctx['gainers'] = ctx['gainers'][:3]
+        ctx['losers'] = ctx['losers'][:3]
+        email_html = render_template('closing_bell_email.html', **ctx)
+
+    token = report_engine.cache_report(email_html, ctx)
+    size_kb = report_engine.html_size_kb(email_html)
+    return render_template(
+        'report_page.html',
+        email_html=email_html,
+        token=token,
+        size_kb=size_kb,
+        clip_risk=size_kb > 100,
+        subject=ctx['subject'],
+        symbols=[ctx['title']],
+        recipient=recipient,
+    )
+
+
+@app.route('/opening-bell', methods=['GET', 'POST'])
+def opening_bell():
+    recipient = (request.values.get('to') or '').strip()
+    universe = (request.values.get('universe') or '').strip()
+    ctx = report_engine.build_opening_bell_context(universe or None, recipient)
+    email_html = render_template('opening_bell_email.html', **ctx)
+
+    if len(email_html.encode('utf-8')) > report_engine.TRIM_THRESHOLD_BYTES:
+        ctx['gainers'] = ctx['gainers'][:3]
+        ctx['losers'] = ctx['losers'][:3]
+        ctx['radar'] = ctx['radar'][:4]
+        email_html = render_template('opening_bell_email.html', **ctx)
+
+    token = report_engine.cache_report(email_html, ctx)
+    size_kb = report_engine.html_size_kb(email_html)
+    return render_template(
+        'report_page.html',
+        email_html=email_html,
+        token=token,
+        size_kb=size_kb,
+        clip_risk=size_kb > 100,
+        subject=ctx['subject'],
+        symbols=[ctx['title']],
+        recipient=recipient,
+    )
+
 @app.route('/api/generate_ai_trade_plan', methods=['POST'])
 def generate_ai_trade_plan():
     try:
@@ -1495,7 +1670,7 @@ def analyze_strategy():
     user_prompt = f"1) Use the vertical axis on the right of the candlestick chart as basis for price of the stock, review the provided image of a trading view chart, and if it is either SPY, SPX, or QQQ, determine the optimal long and short entry and exit price points based on the chart for a 0dte trade. 2) Review the initially provided image of a chart, if it is not SPY, SPX, or QQQ, determine the optimal long and short entry and exit price points based on the chart for either a 0dte trade if its Thursday, 1dte trade if its Wednesday, 2dte trade if its Tuesday, and a 3dte trade if its Monday, or a 4dte trade if its Saturday or Sunday. Include Support and Resistance levels, Potential entry/exit points, and any possible identified chart patterns"
 
     try:
-        response = client.chat.completions.create(model='gpt-4o',  # Use a valid model name
+        response = text_client().chat.completions.create(model=text_model(),  # local model unless USE_LOCAL_LLM=false
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
@@ -1886,7 +2061,7 @@ def analyze_mental_prep():
     )
 
     try:
-        response = client.chat.completions.create(model='gpt-4o',  # Use a valid model name
+        response = text_client().chat.completions.create(model=text_model(),  # local model unless USE_LOCAL_LLM=false
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
@@ -2378,11 +2553,11 @@ def chat():
         filtered_messages = [msg for msg in messages if msg.get('role') != 'system']
         filtered_messages.insert(0, system_message)
 
-        # Select the appropriate model
-        model_name = selected_model
+        # Select the appropriate model (local Nemotron by default)
+        model_name = text_model(selected_model)
 
-        # Call OpenAI API
-        response = client.chat.completions.create(
+        # Call the text LLM
+        response = text_client().chat.completions.create(
             model=model_name,
             messages=filtered_messages,
             temperature=0.7,
@@ -2544,8 +2719,8 @@ Rate the execution from 1 to 10 based on how well it followed the plan. Provide 
 The analysis should be detailed, easy to read, and structured under clear headings. Ensure to break down the analysis by asset type and include any special considerations (like 0dte trades or high volatility setups). Additionally, evaluate the risk management approach based on the plan and suggest improvements if needed.
 """
 
-            # Call OpenAI's Chat-based API
-            response = client.chat.completions.create(model="gpt-4o",  # Use the correct chat model
+            # Call the text LLM (local Nemotron by default)
+            response = text_client().chat.completions.create(model=text_model(),  # local model unless USE_LOCAL_LLM=false
             messages=[
                 {"role": "system", "content": "You are a trading assistant."},
                 {"role": "user", "content": user_prompt}
@@ -2643,8 +2818,8 @@ def analyzeplan():
             {trading_plan}
             """
 
-            # Call OpenAI's Chat-based API
-            response = client.chat.completions.create(model="gpt-4o",  # Use the correct chat model
+            # Call the text LLM (local Nemotron by default)
+            response = text_client().chat.completions.create(model=text_model(),  # local model unless USE_LOCAL_LLM=false
             messages=[
                 {"role": "system", "content": "You are a trading assistant."},
                 {"role": "user", "content": user_prompt}
@@ -2787,49 +2962,12 @@ def auth_me():
     name = (user_info.get('given_name', '') + ' ' + user_info.get('family_name', '')).strip() or user_info.get('name', '')
     image = user_info.get('picture', None)
 
-    # Upsert user
-    user = db.User.find_one({"email": email})
-    now = datetime.utcnow()
-    is_new_user = False
-    if not user:
-        user_doc = {
-            "email": email,
-            "name": name,
-            "image": image,
-            "plan": "free",
-            "customerId": f"temp_free_{base64_email(email)}",
-            "createdAt": now,
-            "updatedAt": now
-        }
-        user_id = db.User.insert_one(user_doc).inserted_id
-        user = db.User.find_one({"_id": user_id})
-        is_new_user = True
-    else:
-        db.User.update_one(
-            {"_id": user["_id"]},
-            {"$set": {
-                "name": name,
-                "image": image,
-                "updatedAt": now
-            }}
-        )
-        user = db.User.find_one({"_id": user["_id"]})
+    if not pg_store.enabled():
+        return jsonify({"error": "Database not configured"}), 503
 
-    # Ensure subscription exists
-    subscription = db.Subscription.find_one({"userId": str(user["_id"])})
-    if not subscription:
-        one_month_later = now + timedelta(days=30)
-        sub_doc = {
-            "userId": str(user["_id"]),
-            "plan": "free",
-            "period": "monthly",
-            "startDate": now,
-            "endDate": one_month_later,
-            "createdAt": now,
-            "updatedAt": now
-        }
-        sub_id = db.Subscription.insert_one(sub_doc).inserted_id
-        subscription = db.Subscription.find_one({"_id": sub_id})
+    # Upsert user + ensure a subscription (Postgres-backed)
+    user = pg_store.upsert_user(email, name, image)
+    subscription = pg_store.ensure_subscription(str(user["_id"]))
 
     # Prepare response
     response = {
