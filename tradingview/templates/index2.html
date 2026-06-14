@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Optimum Vertex AI</title>
+    <script type="text/javascript" src="/charting_library/charting_library.min.js"></script>
+    <script type="text/javascript" src="/datafeeds/udf/dist/polyfills.js"></script>
+    <script type="text/javascript" src="/datafeeds/udf/dist/bundle.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script> <!-- Add html2canvas for capturing images -->
+    <style>
+        #chart-container {
+            min-width: 300px;
+            height: 100%;
+            width: 100%;
+        }
+
+        #resizer {
+            width: 5px;
+            cursor: ew-resize;
+            background-color: #ccc;
+            position: relative;
+            z-index: 1;
+        }
+
+        #resizer:hover {
+            background-color: #888;
+        }
+
+        #strategy-output {
+            width: 600px;
+            border-left: 1px solid #ccc;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .sidebar {
+            width: 250px;
+            background-color: #1a202c;
+            color: white;
+            height: 100vh;
+            padding-top: 20px;
+        }
+
+        .sidebar a {
+            display: block;
+            padding: 10px 20px;
+            text-decoration: none;
+            color: inherit;
+            transition: background-color 0.3s;
+        }
+
+        .sidebar a:hover {
+            background-color: #2d3748;
+        }
+
+        .sidebar h3 {
+            font-size: 1.25rem;
+            font-weight: bold;
+            margin-bottom: 1.5rem;
+            padding-left: 20px;
+        }
+
+        #annotatedImageModal.show {
+            display: flex;
+        }
+    </style>
+</head>
+
+<body class="bg-white text-black">
+    <div class="flex h-screen">
+        <!-- Sidebar Navigation -->
+        <div class="sidebar">
+            <h3>Optimum Vertex AI</h3>
+            <a href="/">Beta - Market Analysis (Technical)</a>
+            <a href="/adv">Advanced - Market Analysis (Technical)</a>
+            <a href="/tradingplan">Trading Plan</a>
+            <a href="/mentalprep">Mental Preparation</a>
+            <a href="/fundamental">Market Analysis (Fundamental)</a>
+            <a href="/macroeconomic">Market Analysis (Macroeconomic)</a>
+            <a href="#">Trading Strategies</a>
+            <a href="#">Settings</a>
+        </div>
+        <div class="flex flex-grow">
+            <div class="flex-grow flex flex-col">
+                <header class="p-4 bg-gray-800 text-white">
+                    <div class="flex justify-between items-center mt-4">
+                        <div id="controls" class="flex space-x-4 items-center">
+                            <div class="flex items-center space-x-2">
+                                <label for="ticker" class="text-white">Symbol</label>
+                                <input type="text" id="ticker" class="p-2 rounded border w-24 bg-gray-900 text-white" placeholder="Symbol" value="NVDA">
+                                <!-- New button to update the chart -->
+                                <button id="updateSymbol" class="p-2 bg-blue-500 text-white rounded">Update Symbol</button>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <label for="options-strategies" class="text-white">Stocks/Options Strategy</label>
+                                <select id="options-strategies" name="options-strategies" class="p-2 rounded border w-56 bg-gray-900 text-white">
+                                    <option value="bear_call_spread">Bear Call Spread (Credit Call Spread)</option>
+                                    <option value="bear_put_spread">Bear Put Spread</option>
+                                    <option value="bear_spread_spread">Bear Spread Spread (Double Bear Spread, Combination Bear Spread)</option>
+                                    <option value="bull_call_spread">Bull Call Spread (Debit Call Spread)</option>
+                                    <option value="bull_put_spread">Bull Put Spread (Credit Put Spread)</option>
+                                    <option value="buying_index_calls">Buying Index Calls</option>
+                                    <option value="buying_index_puts">Buying Index Puts</option>
+                                    <option value="cash_backed_call">Cash-Backed Call (Cash-Secured Call)</option>
+                                    <option value="cash_secured_put">Cash-Secured Put</option>
+                                    <option value="collar">Collar (Protective Collar)</option>
+                                    <option value="covered_call">Covered Call (Buy/Write)</option>
+                                    <option value="covered_put">Covered Put</option>
+                                    <option value="covered_ratio_spread">Covered Ratio Spread</option>
+                                    <option value="covered_strangle">Covered Strangle (Covered Combination)</option>
+                                    <option value="double_bull_spread">Double Bull Spread</option>
+                                    <option value="long_call">Long Call</option>
+                                    <option value="long_call_butterfly">Long Call Butterfly</option>
+                                    <option value="long_call_calendar_spread">Long Call Calendar Spread (Call Horizontal)</option>
+                                    <option value="long_call_condor">Long Call Condor</option>
+                                    <option value="long_condor">Long Condor</option>
+                                    <option value="long_iron_butterfly">Long Iron Butterfly</option>
+                                    <option value="long_put">Long Put</option>
+                                    <option value="long_put_butterfly">Long Put Butterfly</option>
+                                    <option value="long_put_calendar_spread">Long Put Calendar Spread (Put Horizontal)</option>
+                                    <option value="long_put_condor">Long Put Condor</option>
+                                    <option value="long_ratio_call_spread">Long Ratio Call Spread</option>
+                                    <option value="long_ratio_put_spread">Long Ratio Put Spread</option>
+                                    <option value="long_stock">Long Stock</option>
+                                    <option value="long_straddle">Long Straddle</option>
+                                    <option value="long_strangle">Long Strangle (Long Combination)</option>
+                                    <option value="naked_call">Naked Call (Uncovered Call, Short Call)</option>
+                                    <option value="naked_put">Naked Put (Uncovered Put, Short Put)</option>
+                                    <option value="protective_put">Protective Put (Married Put)</option>
+                                    <option value="short_call_butterfly">Short Call Butterfly</option>
+                                    <option value="short_call_calendar_spread">Short Call Calendar Spread (Short Call Time Spread)</option>
+                                    <option value="short_condor">Short Condor (Iron Condor)</option>
+                                    <option value="short_iron_butterfly">Short Iron Butterfly</option>
+                                    <option value="short_put_butterfly">Short Put Butterfly</option>
+                                    <option value="short_put_calendar_spread">Short Put Calendar Spread (Short Put Time Spread)</option>
+                                    <option value="short_ratio_call_spread">Short Ratio Call Spread</option>
+                                    <option value="short_ratio_put_spread">Short Ratio Put Spread</option>
+                                    <option value="short_stock">Short Stock</option>
+                                    <option value="short_straddle">Short Straddle</option>
+                                    <option value="short_strangle">Short Strangle</option>
+                                    <option value="stock_repair">Stock Repair (Covered Ratio Spread)</option>
+                                    <option value="synthetic_long_put">Synthetic Long Put</option>
+                                    <option value="synthetic_long_stock">Synthetic Long Stock</option>
+                                    <option value="synthetic_short_stock">Synthetic Short Stock</option>
+                                </select>
+                            </div>
+                            <button id="runAnalysis" class="p-2 bg-green-500 text-white rounded">Gather Option Chain Analysis</button>
+                            <button id="captureChart" class="p-2 bg-green-500 text-white rounded">Process Chart for Analysis</button>
+                            <button id="downloadChart" class="p-2 bg-yellow-500 text-white rounded">Download Chart Image</button>
+                        </div>
+                    </div>
+                </header>
+                <main class="flex-grow flex">
+                    <div id="chart-container" class="flex-grow relative">
+                        <!-- TradingView Widget BEGIN -->
+                        <div class="tradingview-widget-container" style="height:100%;width:100%">
+                            <div id="tradingview-widget" class="tradingview-widget-container__widget" style="height:calc(100% - 32px);width:100%"></div>
+                            <div class="tradingview-widget-copyright">
+                                <a href="https://www.tradingview.com/" rel="noopener nofollow" target="_blank"><span class="blue-text">Track all markets on TradingView</span></a>
+                            </div>
+                        </div>
+                        <!-- TradingView Widget END -->
+                    </div>
+                    <div id="resizer" class="resizer"></div>
+                    <div id="strategy-output" class="p-4 bg-gray-100 text-black">
+                        <h3 class="font-bold text-lg mb-4">Strategy Analysis</h3>
+                        <div id="strategyDetails">Select a strategy to view analysis:</div>
+                        <button id="exportTradingPlan" class="p-2 bg-blue-500 text-white rounded mt-4">Export to Trading Plan</button>
+                    </div>
+                </main>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="static/main.js"></script>
+
+    <script>
+      let widgetReady = true; // Track widget readiness
+
+// Function to initialize TradingView widget
+function updateTradingViewWidget(symbol) {
+    console.log('Initializing TradingView widget...');
+    const widgetContainer = document.getElementById('tradingview-widget');
+    const scriptElement = document.createElement('script');
+    scriptElement.type = 'text/javascript';
+    scriptElement.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
+    scriptElement.async = true;
+    scriptElement.innerHTML = JSON.stringify({
+        "autosize": true,
+        "symbol": symbol,
+        "timezone": "Etc/UTC",
+        "theme": "light",
+        "style": "1",
+        "locale": "en",
+        "withdateranges": true,
+        "range": "YTD",
+        "hide_side_toolbar": false,
+        "allow_symbol_change": true,
+        "details": true,
+        "hotlist": true,
+        "calendar": true,
+        "studies": [
+            "Volume@tv-basicstudies"
+        ],
+        "show_popup_button": true,
+        "popup_width": "1000",
+        "popup_height": "650"
+    });
+
+    widgetContainer.innerHTML = ''; 
+    widgetContainer.appendChild(scriptElement);
+
+    widgetReady = true; // Mark the widget as ready once initialized
+    console.log("TradingView widget initialized successfully.");
+}
+
+document.getElementById('runAnalysis').addEventListener('click', function() {
+            const symbol = document.getElementById('symbol').value;
+
+            if (!symbol) {
+                alert('Please enter a stock symbol.');
+                return;
+            }
+
+            fetch('/api/run_option_chain', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ symbol: symbol })
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.error) {
+                    document.getElementById('analysisOutput').textContent = 'Error: ' + result.error;
+                } else {
+                    document.getElementById('analysisOutput').textContent = result.output;
+                }
+            })
+            .catch(error => {
+                document.getElementById('analysisOutput').textContent = 'Failed to fetch analysis: ' + error;
+            });
+        });
+        
+// Function to save the chart as PNG using html2canvas
+async function saveChartToPNG() {
+    // Provide user feedback if the chart is not ready
+    if (!widgetReady) {
+        console.error("TradingView widget is not fully ready yet.");
+        alert("TradingView widget is not fully loaded. Please wait a moment.");
+        return;
+    }
+
+    console.log("Attempting to capture chart with html2canvas...");
+
+    // Use html2canvas to capture the chart
+    const chartElement = document.getElementById('chart-container');
+
+    html2canvas(chartElement).then(function(canvas) {
+        const dataUrl = canvas.toDataURL('image/png');
+        downloadImage(dataUrl, 'tradingview_chart.png');
+    }).catch(function(error) {
+        console.error("Error capturing chart with html2canvas:", error);
+        alert('Failed to capture the chart image. Please try again.');
+    });
+}
+
+// Helper function to trigger the image download
+function downloadImage(dataUrl, filename) {
+    const linkElement = document.createElement('a');
+    linkElement.download = filename;
+    linkElement.href = dataUrl;
+    linkElement.dataset.downloadurl = ['image/png', linkElement.download, linkElement.href].join(':');
+    document.body.appendChild(linkElement);
+    linkElement.click();
+    document.body.removeChild(linkElement);
+}
+
+// Bind the saveChartToPNG function to the "Download Chart" button
+document.getElementById('downloadChart').addEventListener('click', saveChartToPNG);
+
+// Automatically load the widget with default symbol when the page is rendered
+document.addEventListener('DOMContentLoaded', function () {
+    const defaultSymbol = document.getElementById('ticker').value.trim().toUpperCase();
+    updateTradingViewWidget(defaultSymbol);
+});
+
+// Enable symbol update on button click
+document.getElementById('updateSymbol').addEventListener('click', function () {
+    const newSymbol = document.getElementById('ticker').value.trim().toUpperCase();
+    updateTradingViewWidget(newSymbol); // Update the chart with new symbol
+});
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,19 @@
+/venv
+venv/
+.venv/
+node_modules
+.env
+
+# Python caches
+__pycache__/
+*.pyc
+
+# OS / editor cruft
+.DS_Store
+
+# Local OMC (oh-my-claudecode) tooling state
+.omc/
+# Elastic Beanstalk Files
+.elasticbeanstalk/*
+!.elasticbeanstalk/*.cfg.yml
+!.elasticbeanstalk/*.global.yml

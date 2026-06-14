@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Optimum Vertex AI - Fundamental Analysis</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        #chart-container {
+            min-width: 300px;
+            height: 100%;
+            width: 100%;
+        }
+
+        .sidebar {
+            width: 250px;
+            background-color: #1a202c;
+            color: white;
+            height: 100vh;
+            padding-top: 20px;
+        }
+
+        .sidebar a {
+            display: block;
+            padding: 10px 20px;
+            text-decoration: none;
+            color: inherit;
+            transition: background-color 0.3s;
+        }
+
+        .sidebar a:hover {
+            background-color: #2d3748;
+        }
+
+        .sidebar h3 {
+            font-size: 1.25rem;
+            font-weight: bold;
+            margin-bottom: 1.5rem;
+            padding-left: 20px;
+        }
+
+        .widgets-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            padding: 20px;
+        }
+
+        .tradingview-widget {
+            width: 100%;
+            margin-bottom: 20px;
+        }
+
+        #fundamental-output {
+            width: 600px;
+            border-left: 1px solid #ccc;
+            transition: background-color 0.3s, color 0.3s;
+        }
+    </style>
+</head>
+
+<body class="bg-white text-black">
+    <div class="flex h-screen">
+        <!-- Sidebar Navigation -->
+        <div class="sidebar">
+            <h3>Optimum Vertex AI</h3>
+            <a href="/">Beta - Market Analysis (Technical)</a>
+            <a href="/adv">Advanced - Market Analysis (Technical)</a>
+            <a href="/tradingplan">Trading Plan</a>
+            <a href="/mentalprep">Mental Preparation</a>
+            <a href="/fundamental">Market Analysis (Fundamental)</a>
+            <a href="/macroeconomic">Market Analysis (Macroeconomic)</a>
+            <a href="#">Trading Strategies</a>
+            <a href="#">Settings</a>
+        </div>
+
+        <div class="flex flex-grow">
+            <div class="flex-grow flex flex-col">
+                <header class="p-4 bg-gray-800 text-white">
+                    <div class="flex justify-between items-center mt-4">
+                        <div id="controls" class="flex space-x-4 items-center">
+                            <div class="flex items-center space-x-2">
+                                <label for="ticker" class="text-white">Symbol</label>
+                                <input type="text" id="ticker" class="p-2 rounded border w-24 bg-gray-900 text-white" placeholder="Symbol" value="AAPL">
+                                <button id="updateSymbol" class="p-2 bg-blue-500 text-white rounded">Update Symbol</button>
+                            </div>
+                            <button id="processFundamentalAnalysis" class="p-2 bg-green-500 text-white rounded">Process Fundamental Analysis</button>
+                        </div>
+                    </div>
+                </header>
+
+                <main class="flex-grow flex">
+                    <div id="chart-container" class="flex-grow relative">
+                        <!-- TradingView Widgets -->
+                        <div id="symbol-info" class="tradingview-widget" style="height: 350px;"></div>
+                        <div id="symbol-profile" class="tradingview-widget" style="height: 350px;"></div>
+                        <div id="technical-analysis" class="tradingview-widget" style="height: 300px;"></div>
+                        <div id="financials" class="tradingview-widget" style="height: 450px;"></div>
+                    </div>
+
+                    <div id="resizer" class="resizer"></div>
+
+                    <div id="fundamental-output" class="p-4 bg-gray-100 text-black">
+                        <h3 class="font-bold text-lg mb-4">Fundamental Analysis</h3>
+                        <div id="fundamentalDetails">Select a stock symbol to process fundamental analysis.</div>
+                        <button id="exportFundamentalPlan" class="p-2 bg-blue-500 text-white rounded mt-4">Export to Trading Plan</button>
+                    </div>
+                </main>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let capturedImageData = ''; // To store the base64 image data
+
+        // Function to update all widgets with the selected symbol
+        function updateWidgets(symbol) {
+            // Update Technical Analysis Widget
+            const technicalAnalysis = document.getElementById('technical-analysis');
+            const analysisScript = document.createElement('script');
+            analysisScript.src = 'https://s3.tradingview.com/external-embedding/embed-widget-technical-analysis.js';
+            analysisScript.async = true;
+            analysisScript.innerHTML = JSON.stringify({
+                "autosize": false,
+                "width": "100%",
+                "height": 300,
+                "interval": "1m",
+                "isTransparent": true,
+                "symbol": symbol,
+                "showIntervalTabs": true,
+                "displayMode": "multiple",
+                "locale": "en",
+                "colorTheme": "light"
+            });
+            technicalAnalysis.innerHTML = '';
+            technicalAnalysis.appendChild(analysisScript);
+
+            // Update Symbol Profile Widget
+            const symbolProfile = document.getElementById('symbol-profile');
+            const profileScript = document.createElement('script');
+            profileScript.src = 'https://s3.tradingview.com/external-embedding/embed-widget-symbol-profile.js';
+            profileScript.async = true;
+            profileScript.innerHTML = JSON.stringify({
+                "autosize": false,
+                "width": "100%",
+                "height": 350,
+                "isTransparent": true,
+                "colorTheme": "light",
+                "symbol": symbol,
+                "locale": "en"
+            });
+            symbolProfile.innerHTML = '';
+            symbolProfile.appendChild(profileScript);
+
+            // Update Symbol Info Widget
+            const symbolInfo = document.getElementById('symbol-info');
+            const infoScript = document.createElement('script');
+            infoScript.src = 'https://s3.tradingview.com/external-embedding/embed-widget-symbol-info.js';
+            infoScript.async = true;
+            infoScript.innerHTML = JSON.stringify({
+                "autosize": false,
+                "width": "100%",
+                "height": 200,
+                "symbol": symbol,
+                "locale": "en",
+                "colorTheme": "light",
+                "isTransparent": true
+            });
+            symbolInfo.innerHTML = '';
+            symbolInfo.appendChild(infoScript);
+
+            // Update Financials Widget
+            const financials = document.getElementById('financials');
+            const financialsScript = document.createElement('script');
+            financialsScript.src = 'https://s3.tradingview.com/external-embedding/embed-widget-financials.js';
+            financialsScript.async = true;
+            financialsScript.innerHTML = JSON.stringify({
+                "autosize": false,
+                "width": "100%",
+                "height": 450,
+                "isTransparent": true,
+                "displayMode": "adaptive",
+                "colorTheme": "light",
+                "symbol": symbol,
+                "locale": "en"
+            });
+            financials.innerHTML = '';
+            financials.appendChild(financialsScript);
+        }
+
+        // Load widgets with default symbol (AAPL)
+        document.addEventListener('DOMContentLoaded', function () {
+            const defaultSymbol = document.getElementById('ticker').value.trim().toUpperCase();
+            updateWidgets(defaultSymbol);
+        });
+
+        // Update widgets when the user clicks 'Update Symbol'
+        document.getElementById('updateSymbol').addEventListener('click', function () {
+            const newSymbol = document.getElementById('ticker').value.trim().toUpperCase();
+            updateWidgets(newSymbol);
+        });
+
+        // Capture fundamental widgets as an image and send to API
+        document.getElementById('processFundamentalAnalysis').addEventListener('click', function () {
+            const stock = document.getElementById('ticker').value;
+
+            if (!stock) {
+                alert('Please enter a stock symbol.');
+                return;
+            }
+
+            // Provide user feedback that the fundamental analysis is in progress
+            const fundamentalDetails = document.getElementById('fundamentalDetails');
+            fundamentalDetails.textContent = 'Processing fundamental analysis... Please wait.';
+
+            // Capture the chart as an image using html2canvas
+            const chartElement = document.getElementById('chart-container');
+
+            html2canvas(chartElement).then(canvas => {
+                // Convert the canvas to a data URL (base64 string)
+                capturedImageData = canvas.toDataURL('image/png');
+
+                // Prepare the data to be sent to the backend for analysis
+                const analysisData = {
+                    stock: stock,
+                    image: capturedImageData  // base64 encoded image data
+                };
+
+                // Make an API call to analyze the stock fundamentals
+                fetch('/api/analyze_fundamental_with_image', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(analysisData)
+                })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.analysis) {
+                        fundamentalDetails.innerHTML = formatFundamentalAnalysis(result.analysis, stock);
+                    } else {
+                        fundamentalDetails.innerHTML = `
+                            <h3 class="font-bold text-lg mb-2">Fundamental Analysis for ${stock}:</h3>
+                            <div class="mb-4">Error: ${result.error}</div>
+                        `;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    fundamentalDetails.innerHTML = `
+                        <h3 class="font-bold text-lg mb-2">Fundamental Analysis for ${stock}:</h3>
+                        <div class="mb-4">Error while fetching fundamental analysis.</div>
+                    `;
+                });
+            }).catch(error => {
+                console.error('Error capturing chart:', error);
+                alert('Failed to capture the chart image. Please try again.');
+            });
+        });
+
+        // Function to format the fundamental analysis output
+        function formatFundamentalAnalysis(analysis, stock) {
+            let formatted = `<h3 class="font-bold text-lg mb-2">Fundamental Analysis for ${stock}:</h3>`;
+            formatted += `<p>${analysis}</p>`;
+            return formatted;
+        }
+    </script>
+</body>
+
+</html>

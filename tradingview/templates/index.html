@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Optimum Vertex AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        #chart-container {
+            min-width: 300px;
+        }
+
+        #resizer {
+            width: 5px;
+            cursor: ew-resize;
+            background-color: #ccc;
+            position: relative;
+            z-index: 1;
+        }
+
+        #resizer:hover {
+            background-color: #888;
+        }
+
+        /* Watchlist styling to match navigation sidebar */
+        .watchlist {
+        width: 200px;
+        background-color: #1a202c;
+        color: white;
+        height: 100vh;
+        border-right: 1px solid #2d3748;
+        padding-top: 20px;
+        display: none; /* Hides the watchlist by default */
+    }
+
+        .watchlist-item {
+            padding: 10px 20px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .watchlist-item:hover {
+            background-color: #2d3748;
+        }
+
+        #strategy-output {
+            width: 600px;
+            border-left: 1px solid #ccc;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .sidebar {
+            width: 250px;
+            background-color: #1a202c;
+            color: white;
+            height: 100vh;
+            padding-top: 20px;
+        }
+
+        .sidebar a {
+            display: block;
+            padding: 10px 20px;
+            text-decoration: none;
+            color: inherit;
+            transition: background-color 0.3s;
+        }
+
+        .sidebar a:hover {
+            background-color: #2d3748;
+        }
+
+        .sidebar h3 {
+            font-size: 1.25rem;
+            font-weight: bold;
+            margin-bottom: 1.5rem;
+            padding-left: 20px;
+        }
+         /* Option Chain Analysis styling */
+         #option-chain-output {
+            width: 100%;
+            background-color: #f9f9f9;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-top: 20px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            overflow-x: auto; /* Allows horizontal scrolling if necessary */
+        }
+
+        .sidebar {
+            width: 250px;
+            background-color: #1a202c;
+            color: white;
+            height: 100vh;
+            padding-top: 20px;
+        }
+
+        .sidebar a {
+            display: block;
+            padding: 10px 20px;
+            text-decoration: none;
+            color: inherit;
+            transition: background-color 0.3s;
+        }
+
+        .sidebar a:hover {
+            background-color: #2d3748;
+        }
+
+        .sidebar h3 {
+            font-size: 1.25rem;
+            font-weight: bold;
+            margin-bottom: 1.5rem;
+            padding-left: 20px;
+        }
+
+        /* Flexbox layout for analysis and option chain */
+        .analysis-container {
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+            gap: 20px;
+        }
+
+        .widgets-container {
+            display: flex;
+            flex-grow: 1;
+            justify-content: space-between;
+            gap: 20px;
+        }
+
+        .option-chain-container {
+            width: 100%; /* Ensure it spans full width of the container */
+        }
+        .audio-btn {
+            padding: 8px 16px;
+            background-color: #4CAF50;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        .stop-btn {
+            padding: 8px 16px;
+            background-color: #FF6347;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+
+<body class="bg-white text-black">
+    <div class="flex h-screen">
+        <!-- Sidebar Navigation -->
+        <div class="sidebar">
+            <h3>Optimum Vertex AI</h3>
+            <a href="/">Beta - Market Analysis (Technical)</a>
+            <a href="/adv">Advanced - Market Analysis (Technical)</a>
+            <a href="/tradingplan">Trading Plan</a>
+            <a href="/mentalprep">Mental Preparation</a>
+            <a href="/fundamental">Market Analysis (Fundamental)</a>
+            <a href="/macroeconomic">Market Analysis (Macroeconomic)</a>
+            <a href="#">Trading Strategies</a>
+            <a href="#">Settings</a>
+        </div>
+        <div class="flex flex-grow">
+            <!-- Watchlist -->
+            <div id="watchlist" class="watchlist">
+                <h3 class="font-bold text-lg mb-4 pl-4">Watchlist</h3>
+                <div id="watchlistItems" class="flex flex-col"></div>
+            </div>
+
+            <div class="flex-grow flex flex-col">
+                <header class="p-4 bg-gray-800 text-white">
+                    <div class="flex justify-between items-center mt-4">
+                        <div id="controls" class="flex space-x-4 items-center">
+                            <div class="flex items-center space-x-2">
+                                <button id="toggleWatchlist" class="p-2 bg-gray-700 text-white rounded">Hide Watchlist</button>
+                                <label for="ticker" class="text-white">Symbol</label>
+                                <input type="text" id="ticker" class="p-2 rounded border w-24 bg-gray-900 text-white" placeholder="Symbol" value="NVDA">
+                            </div>
+
+                            <div class="flex items-center space-x-2">
+                                <label for="timeframe" class="text-white">Interval</label>
+                                <select id="timeframe" class="p-2 rounded border w-20 bg-gray-900 text-white">
+                                    <option value="1m">1m</option>
+                                    <option value="5m">5m</option>
+                                    <option value="60m">1h</option>
+                                    <option value="1d" selected>1d</option>
+                                    <option value="1wk">1wk</option>
+                                    <option value="1mo">1mo</option>
+                                </select>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <label for="emaPeriod" class="text-white">EMA</label>
+                                <input type="number" id="emaPeriod" class="p-2 rounded border w-16 bg-gray-900 text-white" placeholder="EMA" value="20" min="1" max="200">
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <label for="rsiPeriod" class="text-white">RSI</label>
+                                <input type="number" id="rsiPeriod" class="p-2 rounded border w-16 bg-gray-900 text-white" placeholder="RSI" value="14" min="1" max="200">
+                            </div>
+                            <button id="fetchData" class="p-2 bg-blue-500 text-white rounded">Fetch Data</button>
+                            <div class="flex items-center space-x-2">
+                                <label for="autoUpdate" class="text-white">Auto-update</label>
+                                <input type="checkbox" id="autoUpdate" class="p-2 rounded border">
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <label for="updateFrequency" class="text-white">Frequency (s)</label>
+                                <input type="number" id="updateFrequency" class="p-2 rounded border w-12 bg-gray-900 text-white" placeholder="5" value="5" min="1">
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <label for="trading-timeframe" class="text-white">Trading Timeframe</label>
+                                <select id="trading-timeframe" name="trading-timeframe" class="p-2 rounded border w-40 bg-gray-900 text-white">
+                                    <option value="scalping">Scalping (Minutes)</option>
+                                    <option value="day_trading">Day Trading (Hours)</option>
+                                    <option value="overnight">Overnight Hold</option>
+                                    <option value="swing_short">Short-term Swing (2-5 Days)</option>
+                                    <option value="swing_medium">Medium-term Swing (1-3 Weeks)</option>
+                                    <option value="swing_long">Long-term Swing (1-3 Months)</option>
+                                    <option value="position_short">Short-term Position (3-6 Months)</option>
+                                    <option value="position_medium">Medium-term Position (6-12 Months)</option>
+                                    <option value="position_long">Long-term Position (1+ Years)</option>
+                                    <option value="leaps">LEAPS (2+ Years)</option>
+                                </select>
+                            </div>
+                        <div class="flex items-center space-x-2">
+                            <label for="options-strategies" class="text-white">Stocks/Options Strategy</label>
+                            <select id="options-strategies" name="options-strategies" class="p-2 rounded border w-56 bg-gray-900 text-white">
+                                <option value="bear_call_spread">Bear Call Spread (Credit Call Spread)</option>
+                                <option value="bear_put_spread">Bear Put Spread</option>
+                                <option value="bear_spread_spread">Bear Spread Spread (Double Bear Spread, Combination Bear Spread)</option>
+                                <option value="bull_call_spread">Bull Call Spread (Debit Call Spread)</option>
+                                <option value="bull_put_spread">Bull Put Spread (Credit Put Spread)</option>
+                                <option value="buying_index_calls">Buying Index Calls</option>
+                                <option value="buying_index_puts">Buying Index Puts</option>
+                                <option value="cash_backed_call">Cash-Backed Call (Cash-Secured Call)</option>
+                                <option value="cash_secured_put">Cash-Secured Put</option>
+                                <option value="collar">Collar (Protective Collar)</option>
+                                <option value="covered_call">Covered Call (Buy/Write)</option>
+                                <option value="covered_put">Covered Put</option>
+                                <option value="covered_ratio_spread">Covered Ratio Spread</option>
+                                <option value="covered_strangle">Covered Strangle (Covered Combination)</option>
+                                <option value="double_bull_spread">Double Bull Spread</option>
+                                <option value="long_call">Long Call</option>
+                                <option value="long_call_butterfly">Long Call Butterfly</option>
+                                <option value="long_call_calendar_spread">Long Call Calendar Spread (Call Horizontal)</option>
+                                <option value="long_call_condor">Long Call Condor</option>
+                                <option value="long_condor">Long Condor</option>
+                                <option value="long_iron_butterfly">Long Iron Butterfly</option>
+                                <option value="long_put">Long Put</option>
+                                <option value="long_put_butterfly">Long Put Butterfly</option>
+                                <option value="long_put_calendar_spread">Long Put Calendar Spread (Put Horizontal)</option>
+                                <option value="long_put_condor">Long Put Condor</option>
+                                <option value="long_ratio_call_spread">Long Ratio Call Spread</option>
+                                <option value="long_ratio_put_spread">Long Ratio Put Spread</option>
+                                <option value="long_stock">Long Stock</option>
+                                <option value="long_straddle">Long Straddle</option>
+                                <option value="long_strangle">Long Strangle (Long Combination)</option>
+                                <option value="naked_call">Naked Call (Uncovered Call, Short Call)</option>
+                                <option value="naked_put">Naked Put (Uncovered Put, Short Put)</option>
+                                <option value="protective_put">Protective Put (Married Put)</option>
+                                <option value="short_call_butterfly">Short Call Butterfly</option>
+                                <option value="short_call_calendar_spread">Short Call Calendar Spread (Short Call Time Spread)</option>
+                                <option value="short_condor">Short Condor (Iron Condor)</option>
+                                <option value="short_iron_butterfly">Short Iron Butterfly</option>
+                                <option value="short_put_butterfly">Short Put Butterfly</option>
+                                <option value="short_put_calendar_spread">Short Put Calendar Spread (Short Put Time Spread)</option>
+                                <option value="short_ratio_call_spread">Short Ratio Call Spread</option>
+                                <option value="short_ratio_put_spread">Short Ratio Put Spread</option>
+                                <option value="short_stock">Short Stock</option>
+                                <option value="short_straddle">Short Straddle</option>
+                                <option value="short_strangle">Short Strangle</option>
+                                <option value="stock_repair">Stock Repair (Covered Ratio Spread)</option>
+                                <option value="synthetic_long_put">Synthetic Long Put</option>
+                                <option value="synthetic_long_stock">Synthetic Long Stock</option>
+                                <option value="synthetic_short_stock">Synthetic Short Stock</option>
+                            </select>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <label for="toggleRSI" class="text-white">Toggle RSI</label>
+                            <input type="checkbox" id="toggleRSI" class="p-2 rounded border" checked>
+                        </div>
+                        <button id="runAnalysis" class="p-2 bg-green-500 text-white rounded">Gather Option Chain Analysis</button>
+
+                        <button id="captureChart" class="p-2 bg-green-500 text-white rounded">Process Chart for Analysis</button>
+                        <button id="downloadChart" class="p-2 bg-yellow-500 text-white rounded">Download Chart Image</button>
+                    </div>
+                    <!-- <button id="themeToggle" class="p-2 bg-gray-700 text-white rounded">Toggle Theme</button> -->
+                </div>
+            </header>
+            <main class="flex-grow flex">
+                <div id="chart-container" class="flex-grow relative">
+                    <div id="chart" class="w-full h-2/3"></div>
+                    <div id="rsiChart" class="w-full h-1/3"></div>
+                </div>
+                <div id="resizer" class="resizer"></div>
+                <div id="strategy-output" class="p-4 bg-gray-100 text-black">
+                    <h3 class="font-bold text-lg mb-4">Strategy Analysis</h3>
+                    <div id="strategyDetails">Select a strategy to view analysis:</div>
+                    <!-- Audio buttons to trigger text-to-speech and stop it -->
+                    <button class="audio-btn" id="readOutLoud">Read Analysis Aloud</button>
+                    <button class="stop-btn" id="stopAudio">Stop Audio</button>
+                    <audio id="audioPlayer" controls></audio>
+
+                    <button id="exportTradingPlan" class="p-2 bg-blue-500 text-white rounded mt-4">Export to Trading Plan</button>
+                </div>
+                
+                
+            </main>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for displaying the annotated image -->
+<div id="annotatedImageModal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex justify-center items-center z-50">
+    <div class="bg-white p-4 rounded shadow-lg">
+        <h3 class="text-lg font-bold mb-4">Annotated Chart Image</h3>
+        <img id="annotatedImage" src="" alt="Annotated Chart Image" class="max-w-full max-h-screen mb-4">
+        <div class="flex justify-end">
+            <button id="downloadAnnotatedImage" class="p-2 bg-blue-500 text-white rounded mr-2">Download Image</button>
+            <button onclick="closeModal()" class="p-2 bg-red-500 text-white rounded">Close</button>
+        </div>
+    </div>
+</div>
+
+<script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+<script src="static/main.js"></script>
+<script>
+
+
+let capturedImageData = ''; // To store the base64 image data globally
+
+
+const readOutLoudButton = document.getElementById('readOutLoud');
+        const stopAudioButton = document.getElementById('stopAudio');
+        const audioPlayer = document.getElementById('audioPlayer');
+
+        // Function to fetch audio from OpenAI API
+        readOutLoudButton.addEventListener('click', () => {
+            const textToRead = document.getElementById('strategyDetails').innerText;
+
+            fetch('/api/generate_audio', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ text: textToRead })
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.blob();
+                } else {
+                    throw new Error('Failed to generate audio');
+                }
+            })
+            .then(audioBlob => {
+                const audioUrl = URL.createObjectURL(audioBlob);
+                console.log(`Audio URL: ${audioUrl}`);
+                audioPlayer.src = audioUrl;
+                audioPlayer.play();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        });
+
+        // Stop audio playback
+        stopAudioButton.addEventListener('click', () => {
+            audioPlayer.pause();
+            audioPlayer.currentTime = 0;
+        });
+
+
+// Event listener for RSI toggle
+const rsiChartElement = document.getElementById('rsiChart');
+document.getElementById('toggleRSI').addEventListener('change', function () {
+    rsiChartElement.style.display = this.checked ? 'block' : 'none';
+});
+
+// Event listener for capturing chart image and analyzing
+document.getElementById('captureChart').addEventListener('click', function () {
+    const stock = document.getElementById('ticker').value;
+    const selectedStrategy = document.getElementById('options-strategies').value;
+
+    if (!stock) {
+        alert('Please enter a stock symbol.');
+        return;
+    }
+
+    document.getElementById('runAnalysis').addEventListener('click', function() {
+            const symbol = document.getElementById('symbol').value;
+
+            if (!symbol) {
+                alert('Please enter a stock symbol.');
+                return;
+            }
+
+            fetch('/api/run_option_chain', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ symbol: symbol })
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.error) {
+                    document.getElementById('optionChainData').textContent = 'Error: ' + result.error;
+                } else {
+                    document.getElementById('optionChainData').textContent = result.output;
+                }
+            })
+            .catch(error => {
+                document.getElementById('optionChainData').textContent = 'Failed to fetch analysis: ' + error;
+            });
+        });
+
+
+    // Provide user feedback that the analysis is in progress
+    const strategyDetails = document.getElementById('strategyDetails');
+    strategyDetails.textContent = 'Processing chart for analysis... Please wait.';
+
+    // Capture the chart as an image using html2canvas
+    const chartElement = document.getElementById('chart');
+
+    html2canvas(chartElement).then(canvas => {
+        // Convert the canvas to a data URL (base64 string)
+        capturedImageData = canvas.toDataURL('image/png');
+
+        // Prepare the data to be sent to the backend for chart analysis only
+        const chartData = {
+            stock: stock,
+            image: capturedImageData  // base64 encoded image data
+        };
+
+        // Make an API call to analyze the chart only
+        fetch('/api/analyze_chart_only', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(chartData)
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.analysis) {
+                strategyDetails.innerHTML = formatAnalysis(result.analysis, stock);
+            } else {
+                strategyDetails.innerHTML = `
+                    <h3 class="font-bold text-lg mb-2">Chart Analysis for ${stock}:</h3>
+                    <div class="mb-4">Error: ${result.error}</div>
+                    <hr class="my-4"/>
+                `;
+            }
+
+            // If a strategy is selected, also analyze with strategy
+            if (selectedStrategy) {
+                strategyDetails.innerHTML += '<div>Analyzing strategy... Please wait.</div>';
+                
+                // Prepare the data to be sent for strategy analysis
+                const strategyData = {
+                    strategy: selectedStrategy,
+                    stock: stock,
+                    image: capturedImageData // base64 encoded image data
+                };
+
+                // Make an API call to analyze with strategy
+                fetch('/api/analyze_strategy_with_chart', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(strategyData)
+                })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.analysis) {
+                        strategyDetails.innerHTML += formatAnalysis(result.analysis, stock, selectedStrategy);
+
+                        // If an annotated image is available, display it in the modal
+                        if (result.annotated_image) {
+                            document.getElementById('annotatedImage').src = result.annotated_image;
+                            document.getElementById('annotatedImageModal').classList.remove('hidden');
+
+                            // Set up the download link for the annotated image
+                            document.getElementById('downloadAnnotatedImage').onclick = function () {
+                                const link = document.createElement('a');
+                                link.href = result.annotated_image;
+                                link.download = 'annotated_chart_image.png';
+                                link.click();
+                            };
+                        }
+                    } else {
+                        strategyDetails.innerHTML += `
+                            <h3 class="font-bold text-lg mt-4 mb-2">Strategy Analysis for ${stock} with strategy "${selectedStrategy}":</h3>
+                            <div class="mb-4">Error: ${result.error}</div>
+                            <hr class="my-4"/>
+                        `;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    strategyDetails.innerHTML += `
+                        <h3 class="font-bold text-lg mt-4 mb-2">Strategy Analysis for ${stock} with strategy "${selectedStrategy}":</h3>
+                        <div class="mb-4">Error while fetching strategy analysis.</div>
+                        <hr class="my-4"/>
+                    `;
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            strategyDetails.innerHTML = `
+                <h3 class="font-bold text-lg mb-2">Chart Analysis for ${stock}:</h3>
+                <div class="mb-4">Error while fetching analysis.</div>
+                <hr class="my-4"/>
+            `;
+        });
+    }).catch(error => {
+        console.error('Error capturing chart:', error);
+        alert('Failed to capture the chart image. Please try again.');
+    });
+});
+
+ // Event listener for toggling the watchlist visibility
+ document.getElementById('toggleWatchlist').addEventListener('click', function () {
+        const watchlist = document.getElementById('watchlist');
+        if (watchlist.style.display === 'none') {
+            watchlist.style.display = 'block';
+            this.textContent = 'Hide Watchlist';
+        } else {
+            watchlist.style.display = 'none';
+            this.textContent = 'Show Watchlist';
+        }
+    });
+
+    // Set the initial button text since the watchlist is hidden by default
+    document.getElementById('toggleWatchlist').textContent = 'Show Watchlist';
+
+// Function to format the analysis output in a structured format
+function formatAnalysis(analysis, stock, strategy = '') {
+    // This function takes the analysis text and structures it with headings, bullet points, and bold text
+    let formatted = `
+        <h3 class="font-bold text-lg mb-2">Analysis for ${stock} ${strategy ? `with strategy "${strategy}"` : ''}:</h3>
+    `;
+
+    // Use the pre-defined structure for formatting the analysis
+    formatted += analysis
+        .replace(/### Support and Resistance Levels:/g, '<h4 class="font-bold mt-4 mb-2">Support and Resistance Levels:</h4>')
+        .replace(/- \*\*(.*?)\*\*: (.*?)\n/g, '<ul class="ml-4 list-disc"><li><strong>$1:</strong> $2</li></ul>')
+        .replace(/### Potential Entry\/Exit Points:/g, '<h4 class="font-bold mt-4 mb-2">Potential Entry/Exit Points:</h4>')
+        .replace(/- \*\*(.*?)\*\*: (.*?)\n/g, '<ul class="ml-4 list-disc"><li><strong>$1:</strong> $2</li></ul>')
+        .replace(/#### (.*?)\n/g, '<h5 class="font-semibold mt-2">$1</h5>')
+        .replace(/- \*\*(.*?)\*\*: (.*?)\n/g, '<ul class="ml-4 list-disc"><li><strong>$1:</strong> $2</li></ul>')
+        .replace(/### Chart Patterns:/g, '<h4 class="font-bold mt-4 mb-2">Chart Patterns:</h4>')
+        .replace(/- \*\*(.*?)\*\*: (.*?)\n/g, '<ul class="ml-4 list-disc"><li><strong>$1:</strong> $2</li></ul>')
+        .replace(/### Trade Considerations:/g, '<h4 class="font-bold mt-4 mb-2">Trade Considerations:</h4>')
+        .replace(/- \*\*(.*?)\*\*: (.*?)\n/g, '<ul class="ml-4 list-disc"><li><strong>$1:</strong> $2</li></ul>')
+        .replace(/### Summary:/g, '<h4 class="font-bold mt-4 mb-2">Summary:</h4>')
+        .replace(/- \*\*(.*?)\*\*: (.*?)\n/g, '<ul class="ml-4 list-disc"><li><strong>$1:</strong> $2</li></ul>');
+
+    formatted += '<hr class="my-4"/>';
+    return formatted;
+}
+
+// Event listener for closing the modal
+function closeModal() {
+    document.getElementById('annotatedImageModal').classList.add('hidden');
+}
+
+// Function to bold numerical values in the response
+function boldNumbers(text) {
+    return text.replace(/(\d+(\.\d+)?)/g, '<strong>$1</strong>');
+}
+
+</script>
+</body>
+
+</html>

@@ -1,0 +1,20 @@
+{
+  "name": "tradingview-yahoo-finance",
+  "version": "1.0.0",
+  "description": "This project is a web application that displays a TradingView lightweight chart with candlestick data fetched from Yahoo Finance. Users can input a stock symbol and select different timeframes to view the corresponding stock data. The application also includes a theme toggle feature to switch between light and dark modes.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "^2.1.2",
+    "express": "^4.21.0",
+    "lucide-react": "^0.468.0",
+    "puppeteer": "^23.5.1",
+    "yfinance": "^0.0.6"
+  }
+}

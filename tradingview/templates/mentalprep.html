@@ -1,0 +1,2003 @@
+    <!DOCTYPE html>
+    <html lang="en">
+
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Mental Preparation</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <style>
+            /* General Styles */
+            .sidebar {
+                width: 250px;
+                background-color: #1a202c;
+                color: white;
+                height: 100vh;
+                padding-top: 20px;
+                position: fixed;
+            }
+
+            .sidebar a {
+                display: block;
+                padding: 10px 20px;
+                text-decoration: none;
+                color: inherit;
+                transition: background-color 0.3s;
+            }
+
+            .sidebar a:hover {
+                background-color: #2d3748;
+            }
+
+            .sidebar h3 {
+                font-size: 1.25rem;
+                font-weight: bold;
+                margin-bottom: 1.5rem;
+                padding-left: 20px;
+            }
+
+            .content {
+                margin-left: 260px; /* Offset for the sidebar */
+                padding: 20px;
+            }
+
+            .tabs {
+                display: flex;
+                border-bottom: 2px solid #ddd;
+                cursor: pointer;
+            }
+
+            .tab {
+                flex-grow: 1;
+                text-align: center;
+                padding: 10px;
+                border-right: 1px solid #ddd;
+                background-color: #f9f9f9;
+            }
+
+            .tab.active {
+                background-color: #4CAF50;
+                color: white;
+            }
+
+            .tab-content {
+                display: none;
+                padding-top: 20px;
+            }
+
+            .tab-content.active {
+                display: block;
+            }
+
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-bottom: 20px;
+            }
+
+            th, td {
+                border: 1px solid #ddd;
+                padding: 8px;
+                text-align: center;
+            }
+
+            th {
+                background-color: #4CAF50;
+                color: white;
+            }
+
+            input[type="text"], textarea, select {
+                width: 100%;
+                padding: 5px;
+                box-sizing: border-box;
+                text-align: center;
+            }
+
+            input[type="checkbox"] {
+                width: auto;
+            }
+
+            textarea {
+                text-align: left;
+                height: 80px;
+            }
+
+            .save-button {
+                margin-top: 20px;
+            }
+        </style>
+    </head>
+
+    <body class="bg-gray-100 text-black flex">
+
+        <!-- Sidebar Navigation -->
+        <div class="sidebar">
+            <h3>Optimum Vertex AI</h3>
+            <a href="/">Beta - Market Analysis (Technical)</a>
+            <a href="/adv">Advanced - Market Analysis (Technical)</a>
+            <a href="/tradingplan">Trading Plan</a>
+            <a href="/mentalprep">Mental Preparation</a>
+            <a href="/fundamental">Market Analysis (Fundamental)</a>
+            <a href="/macroeconomic">Market Analysis (Macroeconomic)</a>
+            <a href="#">Trading Strategies</a>
+            <a href="#">Settings</a>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="content flex-grow p-8">
+            <h1 class="text-2xl font-bold mb-4">Mental Preparation</h1>
+
+            <!-- Week Selector -->
+            <div class="mb-8">
+                <label for="weekSelect" class="font-bold">Select Week:</label>
+                <select id="weekSelect" class="p-2 border rounded">
+                    <script>
+                        for (let i = 1; i <= 52; i++) {
+                            document.write(`<option value="week${i}">Week ${i}</option>`);
+                        }
+                    </script>
+                </select>
+            </div>
+
+            <!-- Tabs for each day of the week -->
+            <div class="tabs">
+                <div class="tab active" data-day="monday">Monday</div>
+                <div class="tab" data-day="tuesday">Tuesday</div>
+                <div class="tab" data-day="wednesday">Wednesday</div>
+                <div class="tab" data-day="thursday">Thursday</div>
+                <div class="tab" data-day="friday">Friday</div>
+            </div>
+
+            <!-- Content for each day of the week -->
+            <div id="monday" class="tab-content active">
+                <h2 class="text-xl font-bold mb-4">Monday - Mental Preparation</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Field</th>
+                            <th>Input</th>
+                            <th>Summary & Recommendation</th>
+                        </tr>
+                    </thead>
+                    <tbody id="mondayInputs">
+                        <tr>
+                            <td>Date</td>
+                            <td><input type="text" value="2024-01-01" readonly /></td>
+                            <td rowspan="35" id="mondaySummary">
+                                <div id="mondayAIAssistantResponse" class="mb-4"></div>
+                                <button onclick="getAIAssistantSummary('monday')" class="p-2 bg-blue-500 text-white rounded">Optimum Vertex AI Mental Prep Recommendation</button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Chart</td>
+                            <td><input type="file" accept="image/*" /></td>
+                        </tr>
+                        <tr>
+                            <td>Trade Duration</td>
+                            <td><input type="text" placeholder="e.g., 1h 30m" /></td>
+                        </tr>
+                        <tr>
+                            <td>Loop Stage</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Stage 0">Stage 0</option>
+                                    <option value="Stage 1">Stage 1</option>
+                                    <option value="Stage 2">Stage 2</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <!-- <tr>
+                            <td>Emotional Feedback</td>
+                            <td><textarea placeholder="Emotional feedback..."></textarea></td>
+                        </tr> -->
+                        <tr>
+                            <td>Trade (Green or Red)</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="green">Green</option>
+                                    <option value="red">Red</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <!-- Other categories such as Patient, Precise, etc. -->
+                        <tr>
+                            <td>Patient</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Precise</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Calm</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Confident</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Focused on PNL</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Not Confident</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Missed Playbook Setup</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Revenge Traded</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Overtraded</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Distracted</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Stressed</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Greedy</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Prepare and Follow Your Trading Plan</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Workout / Cryo</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Study Trading for 60 Minutes</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Meditation</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Journal Trades</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Stop Loss</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Scale In</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Scale Out</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Is Vacation Coming Up?</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Is it CPI, OPEX, or FOMC Week?</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Sized too Large?</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Profit Stop?</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Chart Your Levels?</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Chart Your Trendlines?</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Charts Alerts?</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+
+            <!-- Similar content for Tuesday to Friday -->
+
+            <div id="tuesday" class="tab-content">
+                <h2 class="text-xl font-bold mb-4">Tuesday - Mental Preparation</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Field</th>
+                            <th>Input</th>
+                            <th>Summary & Recommendation</th>
+                        </tr>
+                    </thead>
+                    <tbody id="mondayInputs">
+                        <tr>
+                            <td>Date</td>
+                            <td><input type="text" value="2024-01-01" readonly /></td>
+                            <td rowspan="35" id="tuesdaySummary">
+                                <button onclick="getAIAssistantSummary('tuesday')" class="p-2 bg-blue-500 text-white rounded mb-4">Optimum Vertex AI Mental Prep Recommendation</button>
+                                <div id="tuesdayAIAssistantResponse"></div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Chart</td>
+                            <td><input type="file" accept="image/*" /></td>
+                        </tr>
+                        <tr>
+                            <td>Trade Duration</td>
+                            <td><input type="text" placeholder="e.g., 1h 30m" /></td>
+                        </tr>
+                        <tr>
+                            <td>Loop Stage</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Stage 0">Stage 0</option>
+                                    <option value="Stage 1">Stage 1</option>
+                                    <option value="Stage 2">Stage 2</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <!-- <tr>
+                            <td>Emotional Feedback</td>
+                            <td><textarea placeholder="Emotional feedback..."></textarea></td>
+                        </tr> -->
+                        <tr>
+                            <td>Trade (Green or Red)</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="green">Green</option>
+                                    <option value="red">Red</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <!-- Other categories such as Patient, Precise, etc. -->
+                        <tr>
+                            <td>Patient</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Precise</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Calm</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Confident</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Focused on PNL</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Not Confident</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Missed Playbook Setup</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Revenge Traded</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Overtraded</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Distracted</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Stressed</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Greedy</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Prepare and Follow Your Trading Plan</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Workout / Cryo</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Study Trading for 60 Minutes</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Meditation</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Journal Trades</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Stop Loss</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Scale In</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Scale Out</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Is Vacation Coming Up?</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Is it CPI, OPEX, or FOMC Week?</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Sized too Large?</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Profit Stop?</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Chart Your Levels?</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Chart Your Trendlines?</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Charts Alerts?</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="wednesday" class="tab-content">
+                <h2 class="text-xl font-bold mb-4">Wednesday - Mental Preparation</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Field</th>
+                            <th>Input</th>
+                            <th>Summary & Recommendation</th>
+                        </tr>
+                    </thead>
+                    <tbody id="wednesdayInputs">
+                        <tr>
+                            <td>Date</td>
+                            <td><input type="text" value="2024-01-01" readonly /></td>
+                            <td rowspan="35" id="wednesdaySummary">
+                                <button onclick="getAIAssistantSummary('wednesday')" class="p-2 bg-blue-500 text-white rounded mb-4">Optimum Vertex AI Mental Prep Recommendation</button>
+                                <div id="wednesdayAIAssistantResponse"></div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Chart</td>
+                            <td><input type="file" accept="image/*" /></td>
+                        </tr>
+                        <tr>
+                            <td>Trade Duration</td>
+                            <td><input type="text" placeholder="e.g., 1h 30m" /></td>
+                        </tr>
+                        <tr>
+                            <td>Loop Stage</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Stage 0">Stage 0</option>
+                                    <option value="Stage 1">Stage 1</option>
+                                    <option value="Stage 2">Stage 2</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <!-- <tr>
+                            <td>Emotional Feedback</td>
+                            <td><textarea placeholder="Emotional feedback..."></textarea></td>
+                        </tr> -->
+                        <tr>
+                            <td>Trade (Green or Red)</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="green">Green</option>
+                                    <option value="red">Red</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <!-- Other categories such as Patient, Precise, etc. -->
+                        <tr>
+                            <td>Patient</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Precise</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Calm</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Confident</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Focused on PNL</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Not Confident</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Missed Playbook Setup</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Revenge Traded</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Overtraded</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Distracted</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Stressed</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Greedy</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Prepare and Follow Your Trading Plan</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Workout / Cryo</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Study Trading for 60 Minutes</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Meditation</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Journal Trades</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Stop Loss</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Scale In</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Scale Out</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Is Vacation Coming Up?</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Is it CPI, OPEX, or FOMC Week?</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Sized too Large?</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Profit Stop?</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Chart Your Levels?</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Chart Your Trendlines?</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Charts Alerts?</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="thursday" class="tab-content">
+                <h2 class="text-xl font-bold mb-4">Thursday - Mental Preparation</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Field</th>
+                            <th>Input</th>
+                            <th>Summary & Recommendation</th>
+                        </tr>
+                    </thead>
+                    <tbody id="thursdayInputs">
+                        <tr>
+                            <td>Date</td>
+                            <td><input type="text" value="2024-01-01" readonly /></td>
+                            <td rowspan="35" id="thursdaySummary">
+                                <button onclick="getAIAssistantSummary('thursday')" class="p-2 bg-blue-500 text-white rounded mb-4">Optimum Vertex AI Mental Prep Recommendation</button>
+                                <div id="thursdayAIAssistantResponse"></div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Chart</td>
+                            <td><input type="file" accept="image/*" /></td>
+                        </tr>
+                        <tr>
+                            <td>Trade Duration</td>
+                            <td><input type="text" placeholder="e.g., 1h 30m" /></td>
+                        </tr>
+                        <tr>
+                            <td>Loop Stage</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Stage 0">Stage 0</option>
+                                    <option value="Stage 1">Stage 1</option>
+                                    <option value="Stage 2">Stage 2</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <!-- <tr>
+                            <td>Emotional Feedback</td>
+                            <td><textarea placeholder="Emotional feedback..."></textarea></td>
+                        </tr> -->
+                        <tr>
+                            <td>Trade (Green or Red)</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="green">Green</option>
+                                    <option value="red">Red</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <!-- Other categories such as Patient, Precise, etc. -->
+                        <tr>
+                            <td>Patient</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Precise</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Calm</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Confident</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Focused on PNL</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Not Confident</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Missed Playbook Setup</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Revenge Traded</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Overtraded</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Distracted</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Stressed</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Greedy</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Prepare and Follow Your Trading Plan</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Workout / Cryo</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Study Trading for 60 Minutes</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Meditation</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Journal Trades</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Stop Loss</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Scale In</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Scale Out</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Is Vacation Coming Up?</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Is it CPI, OPEX, or FOMC Week?</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Sized too Large?</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Profit Stop?</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Chart Your Levels?</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Chart Your Trendlines?</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Charts Alerts?</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Copy the Monday's content and modify the IDs accordingly for other days -->
+
+            <div id="friday" class="tab-content">
+                <h2 class="text-xl font-bold mb-4">Friday - Mental Preparation</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Field</th>
+                            <th>Input</th>
+                            <th>Summary & Recommendation</th>
+                        </tr>
+                    </thead>
+                    <tbody id="fridayInputs">
+                        <tr>
+                            <td>Date</td>
+                            <td><input type="text" value="2024-01-01" readonly /></td>
+                            <td rowspan="35" id="fridaySummary">
+                                <button onclick="getAIAssistantSummary('friday')" class="p-2 bg-blue-500 text-white rounded mb-4">Optimum Vertex AI Mental Prep Recommendation</button>
+                                <div id="fridayAIAssistantResponse"></div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Chart</td>
+                            <td><input type="file" accept="image/*" /></td>
+                        </tr>
+                        <tr>
+                            <td>Trade Duration</td>
+                            <td><input type="text" placeholder="e.g., 1h 30m" /></td>
+                        </tr>
+                        <tr>
+                            <td>Loop Stage</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Stage 0">Stage 0</option>
+                                    <option value="Stage 1">Stage 1</option>
+                                    <option value="Stage 2">Stage 2</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <!-- <tr>
+                            <td>Emotional Feedback</td>
+                            <td><textarea placeholder="Emotional feedback..."></textarea></td>
+                        </tr> -->
+                        <tr>
+                            <td>Trade (Green or Red)</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="green">Green</option>
+                                    <option value="red">Red</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <!-- Other categories such as Patient, Precise, etc. -->
+                        <tr>
+                            <td>Patient</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Precise</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Calm</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Confident</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Focused on PNL</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Not Confident</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Missed Playbook Setup</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Revenge Traded</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Overtraded</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Distracted</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Stressed</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Greedy</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Prepare and Follow Your Trading Plan</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Workout / Cryo</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Study Trading for 60 Minutes</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Meditation</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Journal Trades</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Stop Loss</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Scale In</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Scale Out</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Is Vacation Coming Up?</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Is it CPI, OPEX, or FOMC Week?</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Sized too Large?</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Profit Stop?</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Chart Your Levels?</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Chart Your Trendlines?</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Charts Alerts?</td>
+                            <td>
+                                <select>
+                                    <option value="No Trade">No Trade</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+
+            <div class="save-button">
+                <button id="saveButton" class="p-2 bg-blue-500 text-white rounded">Save All Inputs</button>
+            </div>
+
+        </div>
+
+        <script>
+            // JavaScript to handle tab switching
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.addEventListener('click', function() {
+                    // Remove active class from all tabs
+                    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                    // Add active class to the clicked tab
+                    this.classList.add('active');
+
+                    // Hide all tab content
+                    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+                    // Show the content related to the clicked tab
+                    document.getElementById(this.dataset.day).classList.add('active');
+                });
+            });
+
+            // JavaScript to handle week selection
+            document.getElementById('weekSelect').addEventListener('change', function() {
+                const selectedWeek = this.value;
+                // Implement logic to fetch or populate data for the selected week
+            });
+
+            // JavaScript to handle saving input data
+            document.getElementById('saveButton').addEventListener('click', () => {
+                alert('Daily inputs saved successfully for the week!');
+                // Implement logic to save data to local storage or send to the backend
+            });
+
+            // JavaScript to get AI Assistant Summary and Recommendation
+            function getAIAssistantSummary(day) {
+                const inputs = {};
+                document.querySelectorAll(`#${day}Inputs tr`).forEach(row => {
+                    const inputField = row.querySelector('input, textarea, select');
+                    if (inputField) {
+                        inputs[inputField.placeholder || row.cells[0].textContent] = inputField.type === 'checkbox' ? inputField.checked : inputField.value;
+                    }
+                });
+
+                // Replace with actual API call
+                fetch('/api/get_ai_summary', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(inputs)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById(`${day}AIAssistantResponse`).innerHTML = data.summary;
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById(`${day}AIAssistantResponse`).innerHTML = 'Error fetching summary. Please try again later.';
+                });
+            }
+
+            document.getElementById('saveButton').addEventListener('click', function () {
+            const formData = {
+                chartProvided: document.querySelector('input[type="file"]').files.length > 0,
+                tradeDuration: document.querySelector('input[placeholder="e.g., 1h 30m"]').value,
+                loopStage: document.querySelector('select[name="loopStage"]').value,
+                tradeResult: document.querySelector('select[name="tradeResult"]').value,
+                patient: document.querySelector('select[name="patient"]').value,
+                precise: document.querySelector('select[name="precise"]').value,
+                calm: document.querySelector('select[name="calm"]').value,
+                confident: document.querySelector('select[name="confident"]').value,
+                focusedOnPnl: document.querySelector('select[name="focusedOnPnl"]').value,
+                notConfident: document.querySelector('select[name="notConfident"]').value,
+                missedPlaybook: document.querySelector('select[name="missedPlaybook"]').value,
+                revengeTraded: document.querySelector('select[name="revengeTraded"]').value,
+                overtraded: document.querySelector('select[name="overtraded"]').value,
+                distracted: document.querySelector('select[name="distracted"]').value,
+                stressed: document.querySelector('select[name="stressed"]').value,
+                greedy: document.querySelector('select[name="greedy"]').value,
+                preparePlan: document.querySelector('select[name="preparePlan"]').value,
+                workoutCryo: document.querySelector('select[name="workoutCryo"]').value,
+                studyTrading: document.querySelector('select[name="studyTrading"]').value,
+                meditation: document.querySelector('select[name="meditation"]').value,
+                journalTrades: document.querySelector('select[name="journalTrades"]').value,
+                stopLoss: document.querySelector('select[name="stopLoss"]').value,
+                scaleIn: document.querySelector('select[name="scaleIn"]').value,
+                scaleOut: document.querySelector('select[name="scaleOut"]').value,
+                vacation: document.querySelector('select[name="vacation"]').value,
+                cpiOpexFomc: document.querySelector('select[name="cpiOpexFomc"]').value,
+                sizedTooLarge: document.querySelector('select[name="sizedTooLarge"]').value,
+                profitStop: document.querySelector('select[name="profitStop"]').value,
+                chartLevels: document.querySelector('select[name="chartLevels"]').value,
+                chartTrendlines: document.querySelector('select[name="chartTrendlines"]').value,
+                chartAlerts: document.querySelector('select[name="chartAlerts"]').value
+            };
+
+            fetch('/api/analyze_mental_prep', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(formData)
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.recommendation) {
+                    alert(`Recommendation: ${result.recommendation}`);
+                } else {
+                    alert(`Error: ${result.error}`);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while saving inputs and analyzing data.');
+            });
+        });
+
+        // JavaScript to handle tab switching
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', function () {
+                // Remove active class from all tabs
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                // Add active class to the clicked tab
+                this.classList.add('active');
+
+                // Hide all tab content
+                document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+                // Show the content related to the clicked tab
+                document.getElementById(this.dataset.day).classList.add('active');
+            });
+        });
+
+        // JavaScript to handle saving input data
+        document.getElementById('saveButton').addEventListener('click', () => {
+            alert('Daily inputs saved successfully for the week!');
+            // Implement logic to save data to local storage or send to the backend
+        });
+
+        // JavaScript to get AI Assistant Summary and Recommendation
+    function getAIAssistantSummary(day) {
+        const inputs = {};
+        document.querySelectorAll(`#${day}Inputs tr`).forEach(row => {
+            const inputField = row.querySelector('input, textarea, select');
+            if (inputField) {
+                inputs[inputField.placeholder || row.cells[0].textContent] = inputField.type === 'checkbox' ? inputField.checked : inputField.value;
+            }
+        });
+
+        // Replace with actual API call
+        fetch('/api/get_ai_summary', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(inputs)
+        })
+        .then(response => response.json())
+        .then(data => {
+            const responseContainer = document.getElementById(`${day}AIAssistantResponse`);
+            
+            if (data.summary) {
+                responseContainer.innerHTML = `
+                    <div class="text-left p-4 border border-gray-300 rounded bg-white">
+                        <h3 class="text-xl font-bold mb-2">Summary</h3>
+                        <p class="mb-4">${data.summary}</p>
+                        <h3 class="text-xl font-bold mb-2">Actionable Recommendations</h3>
+                        <ol class="list-decimal list-inside">
+                            ${data.recommendations.map(rec => `<li class="mb-2">${rec}</li>`).join('')}
+                        </ol>
+                    </div>
+                `;
+            } else {
+                responseContainer.innerHTML = `
+                    <div class="text-red-500">Error fetching summary. Please try again later.</div>
+                `;
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById(`${day}AIAssistantResponse`).innerHTML = `
+                <div class="text-red-500">Error fetching summary. Please try again later.</div>
+            `;
+        });
+
+            // Make a POST request to the Flask API to get AI recommendations
+            fetch('/api/analyze_mental_prep', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(inputs)
+            })
+                .then(response => response.json())
+                .then(result => {
+                    // Display the AI recommendation in the respective section
+                    if (result.recommendation) {
+                        document.getElementById(`${day}AIAssistantResponse`).innerHTML = result.recommendation;
+                    } else {
+                        document.getElementById(`${day}AIAssistantResponse`).innerHTML = `Error: ${result.error}`;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById(`${day}AIAssistantResponse`).innerHTML = 'An error occurred while fetching the AI summary. Please try again later.';
+                });
+        }
+        </script>
+    </body>
+
+    </html>

@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weekly Trading Plan</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* General Styles */
+        .sidebar {
+            width: 250px;
+            background-color: #1a202c;
+            color: white;
+            height: 100vh;
+            padding-top: 20px;
+        }
+
+        .sidebar a {
+            display: block;
+            padding: 10px 20px;
+            text-decoration: none;
+            color: inherit;
+            transition: background-color 0.3s;
+        }
+
+        .sidebar a:hover {
+            background-color: #2d3748;
+        }
+
+        .sidebar h3 {
+            font-size: 1.25rem;
+            font-weight: bold;
+            margin-bottom: 1.5rem;
+            padding-left: 20px;
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #ddd;
+            cursor: pointer;
+        }
+
+        .tab {
+            flex-grow: 1;
+            text-align: center;
+            padding: 10px;
+            border-right: 1px solid #ddd;
+            background-color: #f9f9f9;
+        }
+
+        .tab.active {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+            padding-top: 20px;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            text-align: center;
+            padding: 8px;
+        }
+
+        th {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        .puts th {
+            background-color: #f44336;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        input {
+            width: 100%;
+            padding: 4px;
+            box-sizing: border-box;
+            text-align: center;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 4px;
+            box-sizing: border-box;
+            text-align: left;
+        }
+
+        /* Flexbox layout for table and strategy output */
+        .content-wrapper {
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+        }
+
+        /* Table section */
+        .table-section {
+            flex-grow: 2;
+        }
+
+        /* Strategy Analysis column */
+        .strategy-column {
+            flex-grow: 1;
+            background-color: #f9fafb;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .strategy-column h3 {
+            font-size: 1.25rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+        }
+
+        .strategy-column pre {
+            background-color: #f1f1f1;
+            padding: 10px;
+            border-radius: 4px;
+            white-space: pre-wrap; /* Ensure the text wraps */
+        }
+
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #4CAF50;
+            animation: spin 1s ease infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Hide the loading indicator initially */
+        .hidden {
+            display: none;
+        }
+        #progress-container {
+            width: 100%;
+            background-color: #f3f3f3;
+            border-radius: 20px;
+            margin: 20px 0;
+            display: none; /* Initially hidden */
+        }
+
+        #progress-bar {
+            width: 0%;
+            height: 30px;
+            background-color: #4caf50;
+            border-radius: 20px;
+            text-align: center;
+            line-height: 30px;
+            color: white;
+        }
+
+        #progress-message {
+            text-align: center;
+            margin-top: 10px;
+            font-size: 16px;
+        }
+        .audio-btn {
+            padding: 8px 16px;
+            background-color: #4CAF50;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        .stop-btn {
+            padding: 8px 16px;
+            background-color: #FF6347;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+
+<body class="bg-white text-black flex">
+    <!-- Sidebar Navigation -->
+    <div class="sidebar">
+        <h3>Optimum Vertex</h3>
+        <a href="/">Beta - Market Analysis (Technical)</a>
+        <a href="/adv">Advanced - Market Analysis (Technical)</a>
+        <a href="/tradingplan">Trading Plan</a>
+        <a href="/mentalprep">Mental Preparation</a>
+        <a href="/fundamental">Market Analysis (Fundamental)</a>
+        <a href="/macroeconomic">Market Analysis (Macroeconomic)</a>
+        <a href="#">Trading Strategies</a>
+        <a href="#">Settings</a>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="flex-grow p-8">
+        <h1 class="text-2xl font-bold mb-4">Weekly Trading Plan</h1>
+
+        <!-- Week Selector -->
+        <div class="mb-8">
+            <label for="weekSelect" class="font-bold">Select Week:</label>
+            <select id="weekSelect" class="p-2 border rounded">
+                <!-- Options for each week (e.g., Week 1 to Week 52) -->
+                <script>
+                    for (let i = 1; i <= 52; i++) {
+                        document.write(`<option value="week${i}">Week ${i}</option>`);
+                    }
+                </script>
+            </select>
+        </div>
+
+                <!-- Trading Style Selector -->
+                <div class="mb-8">
+                    <label for="tradingStyleSelect" class="font-bold">Select Trading Style:</label>
+                    <select id="tradingStyleSelect" class="p-2 border rounded">
+                        <option value="scalping">Scalping</option>
+                        <option value="dayTrading">Day Trading</option>
+                        <option value="swingTrading">Swing Trading</option>
+                        <option value="positionTrading">Position Trading</option>
+                        <option value="trendTrading">Trend Trading</option>
+                    </select>
+                </div>
+
+          <!-- File Upload Option -->
+          <div class="mb-8">
+            <label for="csvUpload" class="font-bold">Upload Execution Orders CSV:</label>
+            <input type="file" id="csvUpload" class="p-2 border rounded" accept=".csv" />
+        </div>
+
+        <div id="loading-indicator" class="hidden text-center mb-4">
+            <p class="text-lg">Processing analysis, please wait...</p>
+        </div>
+       
+
+        <style>
+            .spinner {
+                border: 4px solid rgba(0, 0, 0, 0.1);
+                width: 36px;
+                height: 36px;
+                border-radius: 50%;
+                border-left-color: #4CAF50;
+                animation: spin 1s ease infinite;
+                margin: 0 auto;
+            }
+        
+            @keyframes spin {
+                0% {
+                    transform: rotate(0deg);
+                }
+                100% {
+                    transform: rotate(360deg);
+                }
+            }
+        </style>
+        
+        <!-- Add this inside the loading indicator -->
+        <div id="loading-indicator" class="hidden text-center mb-4">
+            <div class="spinner"></div>
+            <p class="text-lg">Processing analysis, please wait...</p>
+        </div>
+
+        <!-- Display CSV Content -->
+        <div class="mb-8">
+            <h2 class="text-xl font-bold mb-4">Uploaded Order Execution Data</h2>
+            <div id="csvContent"></div>
+        </div>
+
+        <!-- Tabs for each day of the week -->
+        <div class="tabs">
+            <div class="tab active" data-day="monday">Monday</div>
+            <div class="tab" data-day="tuesday">Tuesday</div>
+            <div class="tab" data-day="wednesday">Wednesday</div>
+            <div class="tab" data-day="thursday">Thursday</div>
+            <div class="tab" data-day="friday">Friday</div>
+        </div>
+
+    
+
+       
+        <!-- Content for each day of the week -->
+        <div id="monday" class="tab-content active">
+            <!-- Collapsible Section for Monday -->
+    <details open>
+        <summary class="text-xl font-bold mb-4 cursor-pointer">Monday Trading Plan</summary>
+
+            <!-- Monday Content -->
+            <h2 class="text-xl font-bold mb-4">Calls (Monday)</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Stock Name</th>
+                        <th>30 Delta Puts Entry (Calls)</th>
+                        <th>30 Delta Puts Stop Loss (Calls)</th>
+                        <th>43 Delta Puts Entry (Calls)</th>
+                        <th>43 Delta Puts Stop Loss (Calls)</th>
+                        <th>47 Delta Puts Entry (Calls)</th>
+                        <th>47 Delta Puts Stop Loss (Calls)</th>
+                        <th>Stock/Options Strategy Analysis</th>
+                        <td><button onclick="executeAnalysis('${rowId}')">Plan vs Execution Analysis</button></td>
+
+                    </tr>
+                </thead>
+                <tbody id="mondayCallsTable"></tbody>
+            </table>
+            <h2 class="text-xl font-bold mb-4">Puts (Monday)</h2>
+            <table class="puts">
+                <thead>
+                    <tr>
+                        <th>Stock Name</th>
+                        <th>30 Delta Calls Entry (Puts)</th>
+                        <th>30 Delta Calls Stop Loss (Puts)</th>
+                        <th>43 Delta Calls Entry (Puts)</th>
+                        <th>43 Delta Calls Stop Loss (Puts)</th>
+                        <th>47 Delta Calls Entry (Puts)</th>
+                        <th>47 Delta Calls Stop Loss (Puts)</th>
+                        <th>Stock/Options Strategy Analysis</th>
+                        <td><button onclick="executeAnalysis('${rowId}')">Plan vs Execution Analysis</button></td>
+
+
+                    </tr>
+                </thead>
+                <tbody id="mondayPutsTable"></tbody>
+            </table>
+        </details>
+        
+        <div id="strategy-output" class="p-4 bg-gray-100 text-black">
+            <h3 class="font-bold text-lg mb-4">Final Analysis</h3>
+            
+             <!-- Progress Bar Section -->
+    <div id="progress-container">
+        <div id="progress-bar">0%</div>
+    </div>
+    <div id="progress-message"></div>
+            <!-- Dynamic content for analysis will be inserted here -->
+            <div id="analysis-content">
+                <!-- Analysis results will be dynamically added here without removing the buttons -->
+            </div>
+        </div>
+        </div>
+        <!-- Buttons to control TTS -->
+        <div id="audio-controls">
+            <!-- Audio buttons to trigger text-to-speech and stop it -->
+            <button class="audio-btn" id="readOutLoud" onclick="readAnalysisAloud()">Read Analysis Aloud</button>
+            
+            <button class="stop-btn" id="stopAudio" onclick="stopAudio()">Stop Audio</button>
+            <audio id="audioPlayer" controls></audio>
+        </div>
+        
+
+        <!-- Repeat Content for Tuesday - Friday -->
+        <div id="tuesday" class="tab-content">
+            <h2 class="text-xl font-bold mb-4">Calls (Tuesday)</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Stock Name</th>
+                        <th>30 Delta Puts Entry (Calls)</th>
+                        <th>30 Delta Puts Stop Loss (Calls)</th>
+                        <th>43 Delta Puts Entry (Calls)</th>
+                        <th>43 Delta Puts Stop Loss (Calls)</th>
+                        <th>47 Delta Puts Entry (Calls)</th>
+                        <th>47 Delta Puts Stop Loss (Calls)</th>
+                        <th>Stock/Options Strategy Analysis</th>
+                        <td><button onclick="executeAnalysis('${rowId}')">Plan vs Execution Analysis</button></td>
+
+                    </tr>
+                </thead>
+                <tbody id="tuesdayCallsTable"></tbody>
+            </table>
+            <h2 class="text-xl font-bold mb-4">Puts (Tuesday)</h2>
+            <table class="puts">
+                <thead>
+                    <tr>
+                        <th>Stock Name</th>
+                        <th>30 Delta Calls Entry (Puts)</th>
+                        <th>30 Delta Calls Stop Loss (Puts)</th>
+                        <th>43 Delta Calls Entry (Puts)</th>
+                        <th>43 Delta Calls Stop Loss (Puts)</th>
+                        <th>47 Delta Calls Entry (Puts)</th>
+                        <th>47 Delta Calls Stop Loss (Puts)</th>
+                        <th>Stock/Options Strategy Analysis</th>
+                        <td><button onclick="executeAnalysis('${rowId}')">Plan vs Execution Analysis</button></td>
+
+                    </tr>
+                </thead>
+                <tbody id="tuesdayPutsTable"></tbody>
+            </table>
+        </div>
+
+        <!-- Similar tables for Wednesday, Thursday, Friday with identical structure -->
+        <!-- Wednesday Content -->
+        <div id="wednesday" class="tab-content">
+            <h2 class="text-xl font-bold mb-4">Calls (Wednesday)</h2>
+            <!-- Copy Monday's and modify IDs -->
+            <table>
+                <thead>
+                    <tr>
+                        <th>Stock Name</th>
+                        <th>30 Delta Puts Entry (Calls)</th>
+                        <th>30 Delta Puts Stop Loss (Calls)</th>
+                        <th>43 Delta Puts Entry (Calls)</th>
+                        <th>43 Delta Puts Stop Loss (Calls)</th>
+                        <th>47 Delta Puts Entry (Calls)</th>
+                        <th>47 Delta Puts Stop Loss (Calls)</th>
+                        <th>Stock/Options Strategy Analysis</th>
+                        <td><button onclick="executeAnalysis('${rowId}')">Plan vs Execution Analysis</button></td>
+
+                    </tr>
+                </thead>
+                <tbody id="wednesdayCallsTable"></tbody>
+            </table>
+            <h2 class="text-xl font-bold mb-4">Puts (Wednesday)</h2>
+            <table class="puts">
+                <thead>
+                    <tr>
+                        <th>Stock Name</th>
+                        <th>30 Delta Calls Entry (Puts)</th>
+                        <th>30 Delta Calls Stop Loss (Puts)</th>
+                        <th>43 Delta Calls Entry (Puts)</th>
+                        <th>43 Delta Calls Stop Loss (Puts)</th>
+                        <th>47 Delta Calls Entry (Puts)</th>
+                        <th>47 Delta Calls Stop Loss (Puts)</th>
+                        <th>Stock/Options Strategy Analysis</th>
+                        <td><button onclick="executeAnalysis('${rowId}')">Plan vs Execution Analysis</button></td>
+
+                    </tr>
+                </thead>
+                <tbody id="wednesdayPutsTable"></tbody>
+            </table>
+        </div>
+
+        <!-- Add tables for Thursday and Friday following the same pattern -->
+        <div id="thursday" class="tab-content">
+            <!-- Thursday Content -->
+            <h2 class="text-xl font-bold mb-4">Calls (Thursday)</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Stock Name</th>
+                        <th>30 Delta Puts Entry (Calls)</th>
+                        <th>30 Delta Puts Stop Loss (Calls)</th>
+                        <th>43 Delta Puts Entry (Calls)</th>
+                        <th>43 Delta Puts Stop Loss (Calls)</th>
+                        <th>47 Delta Puts Entry (Calls)</th>
+                        <th>47 Delta Puts Stop Loss (Calls)</th>
+                        <th>Stock/Options Strategy Analysis</th>
+                        <td><button onclick="executeAnalysis('${rowId}')">Plan vs Execution Analysis</button></td>
+
+                    </tr>
+                </thead>
+                <tbody id="thursdayCallsTable"></tbody>
+            </table>
+            <h2 class="text-xl font-bold mb-4">Puts (Thursday)</h2>
+            <table class="puts">
+                <thead>
+                    <tr>
+                        <th>Stock Name</th>
+                        <th>30 Delta Calls Entry (Puts)</th>
+                        <th>30 Delta Calls Stop Loss (Puts)</th>
+                        <th>43 Delta Calls Entry (Puts)</th>
+                        <th>43 Delta Calls Stop Loss (Puts)</th>
+                        <th>47 Delta Calls Entry (Puts)</th>
+                        <th>47 Delta Calls Stop Loss (Puts)</th>
+                        <th>Stock/Options Strategy Analysis</th>
+                        <td><button onclick="executeAnalysis('${rowId}')">Plan vs Execution Analysis</button></td>
+
+                    </tr>
+                </thead>
+                <tbody id="thursdayPutsTable"></tbody>
+            </table>
+        </div>
+        <div id="friday" class="tab-content">
+            <!-- Friday Content -->
+            <h2 class="text-xl font-bold mb-4">Calls (Friday)</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Stock Name</th>
+                        <th>30 Delta Puts Entry (Calls)</th>
+                        <th>30 Delta Puts Stop Loss (Calls)</th>
+                        <th>43 Delta Puts Entry (Calls)</th>
+                        <th>43 Delta Puts Stop Loss (Calls)</th>
+                        <th>47 Delta Puts Entry (Calls)</th>
+                        <th>47 Delta Puts Stop Loss (Calls)</th>
+                        <th>Stock/Options Strategy Analysis</th>
+                        <td><button onclick="executeAnalysis('${rowId}')">Plan vs Execution Analysis</button></td>
+
+                    </tr>
+                </thead>
+                <tbody id="fridayCallsTable"></tbody>
+            </table>
+            <h2 class="text-xl font-bold mb-4">Puts (Friday)</h2>
+            <table class="puts">
+                <thead>
+                    <tr>
+                        <th>Stock Name</th>
+                        <th>30 Delta Calls Entry (Puts)</th>
+                        <th>30 Delta Calls Stop Loss (Puts)</th>
+                        <th>43 Delta Calls Entry (Puts)</th>
+                        <th>43 Delta Calls Stop Loss (Puts)</th>
+                        <th>47 Delta Calls Entry (Puts)</th>
+                        <th>47 Delta Calls Stop Loss (Puts)</th>
+                        <th>Stock/Options Strategy Analysis</th>
+                        <td><button onclick="executeAnalysis('${rowId}')">Plan vs Execution Analysis</button></td>
+
+                    </tr>
+                </thead>
+                <tbody id="fridayPutsTable"></tbody>
+            </table>
+        </div>
+        
+
+
+    </div>
+
+    <script>
+ let orderExecutionData = [];
+
+ 
+ const readOutLoudButton = document.getElementById('readOutLoud');
+const stopAudioButton = document.getElementById('stopAudio');
+const audioPlayer = document.getElementById('audioPlayer');
+
+function preprocessTextInput(input) {
+    // Check if input is an array
+    if (Array.isArray(input)) {
+        // Join array elements into a single string, preserving newlines
+        let formattedText = input.join("\n");
+
+        // Optionally, remove any markdown symbols like "**" or "###"
+        formattedText = formattedText.replace(/\*\*|###+/g, "");
+
+        return formattedText.trim(); // Trim to remove any leading/trailing spaces
+    } else if (typeof input === 'string') {
+        // If the input is already a string, sanitize it (if necessary)
+        return input.replace(/\*\*|###+/g, "").trim();
+    } else {
+        // If input is neither an array nor string, return an empty string or handle error
+        return "";
+    }
+}
+
+// Example usage:
+const finalAnalysisArray = [
+  
+];
+
+// Preprocess the array or string input
+const preprocessedText = preprocessTextInput(finalAnalysisArray);
+
+// Send the preprocessed text to the API
+fetch('/api/generate_plan_audio', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ text: preprocessedText })
+})
+.then(response => response.blob())
+.then(audioBlob => {
+    // Handle the audioBlob, play it, or handle errors
+    const audioUrl = URL.createObjectURL(audioBlob);
+    document.getElementById('audioPlayer').src = audioUrl;
+    document.getElementById('audioPlayer').play();
+})
+.catch(error => {
+    console.error("Error generating audio:", error);
+});
+
+// JavaScript to handle tab switching
+document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', function () {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        this.classList.add('active');
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+        document.getElementById(this.dataset.day).classList.add('active');
+    });
+});
+
+// Parse CSV and store in orderExecutionData variable
+document.getElementById('csvUpload').addEventListener('change', function (event) {
+    const file = event.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            const csvContent = e.target.result;
+            orderExecutionData = parseCSV(csvContent);
+            displayCSVData(orderExecutionData);
+        };
+        reader.readAsText(file);
+    }
+});
+
+// Function to parse CSV data and clean up undefined fields
+// Function to parse CSV data and clean up undefined fields
+function parseCSV(data) {
+    // Split CSV into rows
+    const rows = data.split('\n').map(row => row.split(','));
+
+    // Ignore the first line (which contains metadata like "Account 775700299 Orders...")
+    rows.shift(); // Remove the metadata row
+
+    // Extract headers from the second row, clean up any extra spaces or quotes
+    const headers = rows.shift().map(header => header.replace(/"/g, '').trim());
+
+    // Map the rest of the rows to objects with headers as keys
+    const parsedData = rows.map(row => {
+        let obj = {};
+        row.forEach((val, idx) => {
+            if (headers[idx]) { // Only add the key if it exists (ignores undefined columns)
+                obj[headers[idx]] = val.replace(/"/g, '').trim();
+            }
+        });
+        return obj;
+    });
+
+    // Remove any objects where all fields are empty (or nearly empty)
+    return parsedData.filter(row => Object.values(row).some(value => value)); // Ensures no empty rows
+}
+
+// Function to display the parsed CSV data in the table
+function displayCSVData(data) {
+    let csvHTML = '<table class="min-w-full bg-white"><tr>';
+    Object.keys(data[0]).forEach(header => {
+        csvHTML += `<th class="border px-4 py-2">${header}</th>`;
+    });
+    csvHTML += '</tr>';
+
+    data.forEach(row => {
+        csvHTML += '<tr>';
+        Object.values(row).forEach(value => {
+            csvHTML += `<td class="border px-4 py-2">${value}</td>`;
+        });
+        csvHTML += '</tr>';
+    });
+    csvHTML += '</table>';
+    document.getElementById('csvContent').innerHTML = csvHTML;
+}
+
+// Function to dynamically add rows based on symbols.txt (Fetched from the backend)
+function loadWeekData(week) {
+    fetch('/api/symbols')
+        .then(response => response.json())
+        .then(symbols => {
+            const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
+            days.forEach(day => {
+                const callsTable = document.getElementById(`${day}CallsTable`);
+                const putsTable = document.getElementById(`${day}PutsTable`);
+
+                callsTable.innerHTML = '';
+                putsTable.innerHTML = '';
+
+                symbols.forEach(symbol => {
+                    // Create rows for the Calls table
+                    let callsRow = document.createElement('tr');
+                    callsRow.innerHTML = `
+                        <td>${symbol}</td>
+                        <td><input type="text" id="${week}_${day}_${symbol.toLowerCase()}30EntryCall" /></td>
+                        <td><input type="text" id="${week}_${day}_${symbol.toLowerCase()}30StopCall" /></td>
+                        <td><input type="text" id="${week}_${day}_${symbol.toLowerCase()}43EntryCall" /></td>
+                        <td><input type="text" id="${week}_${day}_${symbol.toLowerCase()}43StopCall" /></td>
+                        <td><input type="text" id="${week}_${day}_${symbol.toLowerCase()}47EntryCall" /></td>
+                        <td><input type="text" id="${week}_${day}_${symbol.toLowerCase()}47StopCall" /></td>
+                        <td><textarea id="${week}_${day}_${symbol.toLowerCase()}StrategyAnalysisCall"></textarea></td>
+                        <td><button onclick="executeAnalysis('${week}_${day}_${symbol.toLowerCase()}')">Plan vs Execution Analysis</button></td>
+                    `;
+                    callsTable.appendChild(callsRow);
+
+                    // Create rows for the Puts table
+                    let putsRow = document.createElement('tr');
+                    putsRow.innerHTML = `
+                        <td>${symbol}</td>
+                        <td><input type="text" id="${week}_${day}_${symbol.toLowerCase()}30EntryPut" /></td>
+                        <td><input type="text" id="${week}_${day}_${symbol.toLowerCase()}30StopPut" /></td>
+                        <td><input type="text" id="${week}_${day}_${symbol.toLowerCase()}43EntryPut" /></td>
+                        <td><input type="text" id="${week}_${day}_${symbol.toLowerCase()}43StopPut" /></td>
+                        <td><input type="text" id="${week}_${day}_${symbol.toLowerCase()}47EntryPut" /></td>
+                        <td><input type="text" id="${week}_${day}_${symbol.toLowerCase()}47StopPut" /></td>
+                        <td><textarea id="${week}_${day}_${symbol.toLowerCase()}StrategyAnalysisPut"></textarea></td>
+                        <td><button onclick="executeAnalysis('${week}_${day}_${symbol.toLowerCase()}')">Plan vs Execution Analysis</button></td>
+                    `;
+                    putsTable.appendChild(putsRow);
+                });
+            });
+        })
+        .catch(error => console.error('Error fetching symbols:', error));
+}
+
+// Execute analysis for the selected row and symbol
+function executeAnalysis(rowId) {
+    const strategyAnalysisCall = document.getElementById(`${rowId}StrategyAnalysisCall`).value || '';
+    const strategyAnalysisPut = document.getElementById(`${rowId}StrategyAnalysisPut`)?.value || '';
+
+    // Prepare payload with the relevant strategy analysis and execution data
+    const payload = {
+        rowId: rowId,
+        strategyAnalysis: {
+            callAnalysis: strategyAnalysisCall,
+            putAnalysis: strategyAnalysisPut
+        },
+        executionData: orderExecutionData // Send execution data from the uploaded CSV
+    };
+
+    // Show loading spinner
+    document.getElementById('loading-indicator').classList.remove('hidden');
+
+    // Send data to the backend for OpenAI processing
+    fetch('/api/analyze_trade_execution', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log('Analysis result:', data);
+
+        if (data.status === 'success') {
+            // Get the element where you want to display the analysis results
+            const analysisContentDiv = document.getElementById('analysis-content');
+
+            // Clear any previous content in the analysis content div
+            analysisContentDiv.innerHTML = '';
+
+            // Loop through each analysis result and append it to the analysis-content div
+            Object.entries(data.analysis).forEach(([symbol, analysis]) => {
+                const resultDiv = document.createElement('div');
+                resultDiv.innerHTML = `
+                    <h4 class="font-semibold">${symbol} Analysis:</h4>
+                    <pre>${analysis}</pre>
+                `;
+                analysisContentDiv.appendChild(resultDiv);
+            });
+        } else {
+            alert('Error: ' + data.message);
+        }
+    })
+    .finally(() => {
+        // Hide loading spinner
+        document.getElementById('loading-indicator').classList.add('hidden');
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error executing analysis');
+    });
+        }
+
+// Load data for the initial selected week (default to Week 1)
+loadWeekData('week1');
+
+// Function to show the progress bar
+function showProgressBar() {
+            document.getElementById('progress-container').style.display = 'block';
+        }
+
+        // Function to update the progress bar
+        function updateProgressBar(percentComplete, message) {
+            var progressBar = document.getElementById('progress-bar');
+            var progressMessage = document.getElementById('progress-message');
+            progressBar.style.width = percentComplete + '%';
+            progressBar.innerHTML = percentComplete + '%';
+            progressMessage.innerHTML = message;
+        }
+
+        // Simulating a progress update for the analysis process
+        function simulateAnalysis() {
+            showProgressBar();  // Show the progress bar when analysis starts
+            let percentComplete = 0;
+            let interval = setInterval(function () {
+                percentComplete += 10;  // Increment progress
+                updateProgressBar(percentComplete, `Analysis is ${percentComplete}% complete`);
+
+                // Stop the progress bar at 100%
+                if (percentComplete >= 100) {
+                    clearInterval(interval);
+                    updateProgressBar(100, 'Analysis complete! Generating results...');
+                    
+                    // After completion, update the strategy details
+                    setTimeout(function() {
+                        document.getElementById('strategyDetails').innerHTML = 'The analysis is complete. Here are the results...';
+                    }, 1000);  // Simulating a delay to show final results
+                }
+            }, 500);  // Simulate progress every half-second
+        }
+
+        // Call the simulation function after the page loads
+        window.onload = simulateAnalysis;
+    </script>
+</body>
+
+</html>
