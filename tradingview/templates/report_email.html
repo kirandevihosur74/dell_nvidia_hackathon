@@ -172,7 +172,9 @@
                     <tr><td style="padding:12px 14px 14px;">
                       <div style="text-align:center;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#9b1c1c;font-weight:700;margin-bottom:10px;">Price Trend &amp; Returns</div>
 
-                      {% if s.spark_bars %}
+                      {% if s.chart_img %}
+                      <img src="{{ s.chart_img }}" alt="{{ s.symbol }} 1-year price chart" width="100%" style="display:block;width:100%;max-width:100%;height:auto;border:1px solid #efeae0;margin:0 auto 12px;" />
+                      {% elif s.spark_bars %}
                       <table role="presentation" cellpadding="0" cellspacing="0" style="height:46px;margin:0 auto 12px;"><tr style="vertical-align:bottom;">
                         {% for b in s.spark_bars %}
                         <td style="padding:0 1px;vertical-align:bottom;"><div style="width:9px;height:{{ b.h }}px;background:{{ b.color }};"></div></td>

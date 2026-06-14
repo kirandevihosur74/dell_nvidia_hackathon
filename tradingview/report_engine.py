@@ -12,10 +12,16 @@ app.py (get_market_data, /api/chat, get_top_news).
 """
 from __future__ import annotations
 
+import base64
+import glob
+import hashlib
+import json
 import os
 import re
 import secrets
 import smtplib
+import subprocess
+import tempfile
 from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -157,6 +163,16 @@ def fetch_snapshot(symbol):
             step = max(1, n // 12)
             spark = [closes[i] for i in range(0, n, step)][-12:]
 
+        # Denser series (~160 pts) for the high-res Manim 1-year price chart
+        chart_closes = []
+        if closes:
+            n = len(closes)
+            step = max(1, n // 160)
+            chart_closes = [round(float(closes[i]), 4) for i in range(0, n, step)]
+            tail = round(float(closes[-1]), 4)
+            if chart_closes and chart_closes[-1] != tail:
+                chart_closes.append(tail)
+
         target = _f(info.get("targetMeanPrice"))
         upside = (target / price - 1) * 100 if (target and price) else None
 
@@ -190,6 +206,7 @@ def fetch_snapshot(symbol):
                 "ret_6m_pct": ret_over(126),
                 "ret_1y_pct": ret_over(252) if len(closes) > 252 else ret_over(len(closes) - 1) if closes else None,
                 "spark": spark,
+                "chart_closes": chart_closes,
                 "target_mean": target,
                 "upside_pct": upside,
                 "recommendation": (info.get("recommendationKey") or "—").replace("_", " ").title(),
@@ -266,6 +283,83 @@ GREEN = "#16a34a"
 RED = "#dc2626"
 SLATE = "#64748b"
 
+# ---------------------------------------------------------------------------
+# High-res Manim price chart (rendered to a base64 PNG, embedded as <img>)
+# ---------------------------------------------------------------------------
+# Manim lives in the video venv; override with MANIM_BIN. Charts are on by
+# default and degrade to the email-safe spark bars if rendering fails.
+_HERE = os.path.dirname(os.path.abspath(__file__))
+MANIM_BIN = os.getenv(
+    "MANIM_BIN", os.path.join(_HERE, "video", ".venv", "bin", "manim"))
+_CHART_SCENE = os.path.join(_HERE, "charts", "stock_chart_scene.py")
+MANIM_CHARTS = os.getenv("REPORT_MANIM_CHARTS", "true").lower() in ("1", "true", "yes")
+MANIM_CHART_QUALITY = os.getenv("MANIM_CHART_QUALITY", "m")  # l/m/h
+_CHART_CACHE = os.path.join(tempfile.gettempdir(), "report_charts")
+
+
+def render_stock_chart(s):
+    """Render a 1-year price chart for snapshot `s` with Manim and return a
+    `data:image/png;base64,...` URI. Returns None on any failure (the report
+    then falls back to the email-safe spark bars). Cached per symbol per day."""
+    if not MANIM_CHARTS:
+        return None
+    closes = s.get("chart_closes") or []
+    if len(closes) < 2 or not os.path.exists(MANIM_BIN) or not os.path.exists(_CHART_SCENE):
+        return None
+    try:
+        symbol = (s.get("symbol") or "TICKER").upper()
+        os.makedirs(_CHART_CACHE, exist_ok=True)
+        day = datetime.now().strftime("%Y%m%d")
+        key = hashlib.md5(f"{symbol}-{day}-{closes[-1]}-{len(closes)}".encode()).hexdigest()[:12]
+        png_path = os.path.join(_CHART_CACHE, f"{symbol}_{key}.png")
+
+        if not os.path.exists(png_path):
+            data = {
+                "symbol": symbol,
+                "name": s.get("name", symbol),
+                "currency": s.get("currency", "USD"),
+                "last_price": s.get("price"),
+                "change_pct": s.get("ret_1y_pct"),
+                "closes": closes,
+            }
+            data_path = os.path.join(_CHART_CACHE, f"{symbol}_{key}.json")
+            with open(data_path, "w") as fh:
+                json.dump(data, fh)
+
+            media = os.path.join(_CHART_CACHE, "media")
+            out_name = f"{symbol}_{key}.png"
+            cmd = [
+                MANIM_BIN, f"-q{MANIM_CHART_QUALITY}", "-s", "--format=png",
+                "--media_dir", media, "-o", out_name, _CHART_SCENE, "StockChart",
+            ]
+            env = dict(os.environ, MANIM_CHART_DATA=data_path)
+            subprocess.run(cmd, env=env, check=True, capture_output=True, timeout=180)
+            found = glob.glob(os.path.join(media, "images", "**", out_name), recursive=True)
+            if not found:
+                return None
+            # Downscale + optimize so the base64 stays email-light (Gmail clips
+            # at ~102 KB). A 1280px render -> ~660px keeps it crisp but small.
+            try:
+                from PIL import Image
+                target_w = int(os.getenv("MANIM_CHART_WIDTH", "660"))
+                with Image.open(found[0]) as im:
+                    im = im.convert("RGB")
+                    if im.width > target_w:
+                        h = round(im.height * target_w / im.width)
+                        im = im.resize((target_w, h), Image.LANCZOS)
+                    # Palette-quantize: the chart is mostly flat colors, so a
+                    # 128-colour palette PNG is a fraction of the truecolor size.
+                    im = im.quantize(colors=128, method=Image.FASTOCTREE)
+                    im.save(png_path, format="PNG", optimize=True)
+            except Exception:  # noqa: BLE001 — fall back to the raw render
+                os.replace(found[0], png_path)
+
+        with open(png_path, "rb") as fh:
+            b64 = base64.b64encode(fh.read()).decode("ascii")
+        return f"data:image/png;base64,{b64}"
+    except Exception:  # noqa: BLE001 — never let a chart failure kill the report
+        return None
+
 
 def compute_visuals(s):
     """Attach bar/range geometry used by the email template."""
@@ -298,6 +392,10 @@ def compute_visuals(s):
                 "color": GREEN if v >= 0 else RED,
             })
     s["perf_bars"] = perf
+
+    # High-res Manim 1-year price chart (falls back to spark bars if None)
+    if s.get("ok"):
+        s["chart_img"] = render_stock_chart(s)
     return s
 
 
