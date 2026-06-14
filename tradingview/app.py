@@ -3171,6 +3171,17 @@ def analyze_assets():
                 # One bad symbol/model call must not sink the whole batch.
                 entry['error'] = str(sym_e)
                 print(f"analyze_assets error for {sym}: {sym_e}")
+            # Persist each result to Postgres (non-blocking; logs on failure).
+            row_id = pg_store.save_asset_analysis(
+                sym, question,
+                answer=entry.get('answer'), error=entry.get('error'),
+                model=model, persona=persona, intents=intents,
+                intents_fulfilled=entry.get('intents_fulfilled'),
+                intents_unavailable=entry.get('intents_unavailable'),
+                client_ip=(request.headers.get('X-Forwarded-For') or request.remote_addr),
+            )
+            if row_id is not None:
+                entry['analysis_id'] = row_id
             results.append(entry)
 
         return jsonify({

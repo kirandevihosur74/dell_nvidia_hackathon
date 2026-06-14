@@ -63,6 +63,24 @@ def _ensure_schema():
                 created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
                 updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
             );
+            CREATE TABLE IF NOT EXISTS asset_analyses (
+                id                  BIGSERIAL PRIMARY KEY,
+                symbol              TEXT NOT NULL,
+                question            TEXT NOT NULL,
+                model               TEXT,
+                persona             TEXT,
+                intents             TEXT[],
+                intents_fulfilled   TEXT[],
+                intents_unavailable TEXT[],
+                answer              TEXT,
+                error               TEXT,
+                client_ip           TEXT,
+                created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            CREATE INDEX IF NOT EXISTS idx_asset_analyses_symbol
+                ON asset_analyses (symbol);
+            CREATE INDEX IF NOT EXISTS idx_asset_analyses_created_at
+                ON asset_analyses (created_at DESC);
             """
         )
     _schema_ready = True
@@ -155,3 +173,32 @@ def ensure_subscription(user_id):
             )
             row = cur.fetchone()
         return _sub_doc(row)
+
+
+def save_asset_analysis(symbol, question, *, answer=None, error=None,
+                        model=None, persona=None, intents=None,
+                        intents_fulfilled=None, intents_unavailable=None,
+                        client_ip=None):
+    """Persist one /api/analyze_assets result (per symbol). Returns the new
+    row id, or None if Postgres is unavailable (must never break the request)."""
+    try:
+        _ensure_schema()
+        with _connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO asset_analyses
+                    (symbol, question, model, persona, intents,
+                     intents_fulfilled, intents_unavailable, answer, error, client_ip)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+                """,
+                (symbol, question, model, persona,
+                 list(intents) if intents else None,
+                 list(intents_fulfilled) if intents_fulfilled else None,
+                 list(intents_unavailable) if intents_unavailable else None,
+                 answer, error, client_ip),
+            )
+            return cur.fetchone()[0]
+    except Exception as exc:  # noqa: BLE001 - persistence must not sink the request
+        print(f"[pg_store] save_asset_analysis failed: {exc}")
+        return None
