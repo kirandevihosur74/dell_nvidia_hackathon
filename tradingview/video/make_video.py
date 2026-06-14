@@ -22,10 +22,24 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from urllib.parse import urlparse
 
 HERE = Path(__file__).resolve().parent
 OUT = HERE / "out"
 OUT.mkdir(parents=True, exist_ok=True)
+
+
+def video_sources(ctx):
+    """Numbered sources for the on-screen citation card (source + domain)."""
+    out = []
+    for s in ctx.get("sources", []):
+        ref = ""
+        try:
+            ref = urlparse(s.get("url", "")).netloc.replace("www.", "")
+        except Exception:
+            ref = ""
+        out.append({"n": s.get("n"), "source": s.get("source", ""), "ref": ref})
+    return out[:7]
 
 MOCK = {
     "title": "THE CLOSING BELL",
@@ -53,6 +67,11 @@ MOCK = {
                {"symbol": "PG", "change_pct": -1.42}, {"symbol": "KO", "change_pct": -1.08}],
     "tone": "Risk tone constructive — a falling VIX and firm breadth point to risk-on positioning into the close.",
     "breadth": {"adv": 18, "decl": 12},
+    "sources": [
+        {"n": 1, "source": "Yahoo Finance", "ref": "finance.yahoo.com"},
+        {"n": 2, "source": "CNBC", "ref": "cnbc.com"},
+        {"n": 3, "source": "MarketWatch", "ref": "marketwatch.com"},
+    ],
 }
 
 MOCK_OPENING = {
@@ -94,6 +113,12 @@ MOCK_OPENING = {
     ],
     "tone": "Pre-market setup risk-on — firm futures and a strong Asia session set a constructive tone into the open; CPI at 8:30 is the swing factor.",
     "breadth": {"adv": 4, "decl": 4},
+    "sources": [
+        {"n": 1, "source": "Yahoo Finance", "ref": "finance.yahoo.com"},
+        {"n": 2, "source": "SEC EDGAR", "ref": "sec.gov"},
+        {"n": 3, "source": "Federal Reserve", "ref": "federalreserve.gov"},
+        {"n": 4, "source": "GDELT", "ref": "gdeltproject.org"},
+    ],
 }
 
 
@@ -143,7 +168,7 @@ def from_live_opening():
         "radar": [{"text": re.sub(r"[*_#]", "", r["text"])} for r in ctx.get("radar", [])],
         "tone": ("Risk-on setup into the open." if (fut and fut[0]["change_pct"] >= 0)
                  else "Cautious setup into the open."),
-        "breadth": ctx["breadth"],
+        "breadth": ctx["breadth"], "sources": video_sources(ctx),
     }
 
 
@@ -168,7 +193,7 @@ def from_live():
         "sectors": [{"name": s["name"], "change_pct": round(s["change_pct"], 2)} for s in ctx["sectors"]],
         "gainers": [{"symbol": g["symbol"], "change_pct": round(g["change_pct"], 2)} for g in ctx["gainers"]],
         "losers": [{"symbol": g["symbol"], "change_pct": round(g["change_pct"], 2)} for g in ctx["losers"]],
-        "tone": tone, "breadth": ctx["breadth"],
+        "tone": tone, "breadth": ctx["breadth"], "sources": video_sources(ctx),
     }
 
 
@@ -204,6 +229,9 @@ def build_script(d):
     tone = re.sub(r"[*_\[\]\(\)#]", "", d.get("tone", "")).strip()
     if tone:
         parts.append(tone if tone.endswith(".") else tone + ".")
+    names = list(dict.fromkeys(s.get("source", "") for s in (d.get("sources") or []) if s.get("source")))[:4]
+    if names:
+        parts.append("Sources: " + ", ".join(names) + ".")
     parts.append("That's your market wrap. Remember, this is for information only, and not investment advice.")
     return " ".join(parts)
 
@@ -245,6 +273,9 @@ def build_script_opening(d):
     tone = re.sub(r"[*_\[\]\(\)#]", "", d.get("tone", "")).strip()
     if tone:
         parts.append(tone if tone.endswith(".") else tone + ".")
+    names = list(dict.fromkeys(s.get("source", "") for s in (d.get("sources") or []) if s.get("source")))[:4]
+    if names:
+        parts.append("Sources: " + ", ".join(names) + ".")
     parts.append("That's your pre-market setup. This is for information only, and not investment advice.")
     return " ".join(parts)
 

@@ -84,6 +84,7 @@ class ClosingBellVideo(Scene):
         self.sector_bars()
         self.movers()
         self.radar()
+        self.sources_card()
         self.outro()
 
         # pad to match the narration length if provided
@@ -273,6 +274,27 @@ class ClosingBellVideo(Scene):
 
         self.play(LaggedStart(*[FadeIn(r, shift=RIGHT * 0.2) for r in rows], lag_ratio=0.25), run_time=1.8)
         self.wait(2.8)
+        self.play(FadeOut(heading), FadeOut(rows), run_time=0.6)
+
+    # --------------------------------------------------------------- sources
+    def sources_card(self):
+        srcs = self.data.get("sources")
+        if not srcs:
+            return
+        heading = self._section(self.data.get("sources_title", "Sources & References")).to_edge(UP, buff=0.7)
+        self.play(FadeIn(heading, shift=DOWN * 0.2), run_time=0.6)
+
+        rows = VGroup()
+        for s in srcs[:7]:
+            num = _t(f"[{s.get('n', '')}]", 18, MAROON, "BOLD")
+            label = s.get("source", "")
+            if s.get("ref"):
+                label += f"  —  {s['ref']}"
+            rows.add(VGroup(num, _t(label, 20, INK)).arrange(RIGHT, buff=0.3))
+        rows.arrange(DOWN, buff=0.3, aligned_edge=LEFT).next_to(heading, DOWN, buff=0.8)
+
+        self.play(LaggedStart(*[FadeIn(r, shift=RIGHT * 0.2) for r in rows], lag_ratio=0.18), run_time=1.8)
+        self.wait(2.6)
         self.play(FadeOut(heading), FadeOut(rows), run_time=0.6)
 
     # ----------------------------------------------------------------- outro
