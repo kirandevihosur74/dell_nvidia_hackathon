@@ -86,7 +86,7 @@ class ClosingBellVideo(Scene):
         title = _t(self.data.get("title", "THE CLOSING BELL"), 54, INK, "BOLD")
         head = VGroup(bar, title).arrange(RIGHT, buff=0.35)
         sub = _t(self.data.get("headline", "After the Bell"), 30, SUBTLE)
-        date = _t(self.data.get("date", ""), 24, MAROON)
+        date = _t(self.data.get("stamp", self.data.get("date", "")), 24, MAROON)
         rule = Line(LEFT * 5, RIGHT * 5, color=RULE, stroke_width=2)
         group = VGroup(head, rule, sub, date).arrange(DOWN, buff=0.4)
 

@@ -21,7 +21,37 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from urllib.parse import quote
 
+try:
+    from zoneinfo import ZoneInfo
+except Exception:  # pragma: no cover
+    ZoneInfo = None
+
 from markupsafe import escape, Markup
+
+# Markets run on US Eastern — always stamp reports in ET so the timestamp is
+# meaningful (and correct) regardless of where the server lives.
+MARKET_TZ = os.getenv("MARKET_TZ", "America/New_York")
+
+
+def now_market():
+    """(datetime, tz_label) in market time; falls back to local if tz db missing."""
+    if ZoneInfo is not None:
+        try:
+            label = "ET" if MARKET_TZ == "America/New_York" else MARKET_TZ
+            return datetime.now(ZoneInfo(MARKET_TZ)), label
+        except Exception:
+            pass
+    return datetime.now(), "local"
+
+
+def fmt_time(dt, tz_label):
+    """e.g. '4:07 PM ET'."""
+    return dt.strftime("%I:%M %p").lstrip("0") + f" {tz_label}"
+
+
+def fmt_stamp(dt, tz_label):
+    """e.g. 'June 14, 2026 · 4:07 PM ET'."""
+    return dt.strftime("%B %d, %Y") + " · " + fmt_time(dt, tz_label)
 
 # Gmail clips HTML emails larger than ~102,400 bytes. Stay comfortably under.
 CLIP_LIMIT_BYTES = 102_400
@@ -531,7 +561,7 @@ def build_report_context(symbols_raw, question="", recipient=""):
         "verdict_html": render_markdown(narrative.get("verdict", "")),
         "notes_html": render_markdown(narrative.get("notes", "")),
         "view_url": view_url,
-        "generated_at": datetime.now().strftime("%B %d, %Y at %I:%M %p"),
+        "generated_at": (lambda nt: fmt_stamp(nt[0], nt[1]))(now_market()),
         # formatters exposed to the template
         "fmt_money": fmt_money,
         "fmt_big": fmt_big,
@@ -840,15 +870,20 @@ def build_closing_bell_context(universe_raw=None, recipient=""):
 
     base = os.getenv("REPORT_BASE_URL", "http://127.0.0.1:5000").rstrip("/")
     view_url = f"{base}/closing-bell"
-    date_str = datetime.now().strftime("%A, %B %d, %Y")
+    now, tz = now_market()
+    date_str = now.strftime("%A, %B %d, %Y")
+    time_str = fmt_time(now, tz)
     spx = next((i for i in indices if i["symbol"] == "^GSPC" and i.get("ok")), None)
-    subject = f"The Closing Bell — {datetime.now().strftime('%b %d')}" + (f": S&P 500 {fmt_pct(spx['change_pct'])}" if spx else "")
+    subject = (f"The Closing Bell — {now.strftime('%b %d')}, {time_str}"
+               + (f": S&P 500 {fmt_pct(spx['change_pct'])}" if spx else ""))
 
     return {
         "title": "The Closing Bell",
         "subject": subject,
-        "filename": "closing_bell_" + datetime.now().strftime("%Y%m%d") + ".html",
+        "filename": "closing_bell_" + now.strftime("%Y%m%d_%H%M") + ".html",
         "date_str": date_str,
+        "time_str": time_str,
+        "as_of": f"As of {time_str}",
         "recipient": recipient.strip(),
         "indices": indices,
         "glance": glance,
@@ -863,7 +898,7 @@ def build_closing_bell_context(universe_raw=None, recipient=""):
         "tone_html": render_markdown(narrative.get("verdict", "")),
         "drivers_html": render_markdown(narrative.get("notes", "")),
         "view_url": view_url,
-        "generated_at": datetime.now().strftime("%B %d, %Y at %I:%M %p"),
+        "generated_at": fmt_stamp(now, tz),
         "fmt_money": fmt_money, "fmt_big": fmt_big, "fmt_pct": fmt_pct, "fmt_num": fmt_num,
     }
 
@@ -1067,15 +1102,19 @@ def build_opening_bell_context(universe_raw=None, recipient=""):
     narrative = opening_bell_narrative(futures, overnight, gainers, losers, glance, radar, sources)
 
     base = os.getenv("REPORT_BASE_URL", "http://127.0.0.1:5000").rstrip("/")
-    date_str = datetime.now().strftime("%A, %B %d, %Y")
+    now, tz = now_market()
+    date_str = now.strftime("%A, %B %d, %Y")
+    time_str = fmt_time(now, tz)
     es = next((f for f in futures if f["symbol"] == "ES=F" and f.get("ok")), None)
-    subject = f"The Opening Bell — {datetime.now().strftime('%b %d')}" + (f": S&P futures {fmt_pct(es['change_pct'])}" if es else "")
+    subject = (f"The Opening Bell — {now.strftime('%b %d')}, {time_str}"
+               + (f": S&P futures {fmt_pct(es['change_pct'])}" if es else ""))
 
     ctx = {
         "report_type": "opening",
         "title": "The Opening Bell", "subject": subject,
-        "filename": "opening_bell_" + datetime.now().strftime("%Y%m%d") + ".html",
-        "date_str": date_str, "recipient": recipient.strip(),
+        "filename": "opening_bell_" + now.strftime("%Y%m%d_%H%M") + ".html",
+        "date_str": date_str, "time_str": time_str, "as_of": f"As of {time_str} · before the open",
+        "recipient": recipient.strip(),
         "futures": futures, "overnight": overnight,
         "best_overnight": overnight[0] if overnight else None,
         "worst_overnight": overnight[-1] if overnight else None,
@@ -1084,7 +1123,7 @@ def build_opening_bell_context(universe_raw=None, recipient=""):
         "summary_html": render_markdown(narrative.get("summary", "")),
         "tone_html": render_markdown(narrative.get("verdict", "")),
         "view_url": f"{base}/opening-bell",
-        "generated_at": datetime.now().strftime("%B %d, %Y at %I:%M %p"),
+        "generated_at": fmt_stamp(now, tz),
         "fmt_money": fmt_money, "fmt_big": fmt_big, "fmt_pct": fmt_pct, "fmt_num": fmt_num,
     }
     ctx["text_plain"] = plaintext_opening(ctx)

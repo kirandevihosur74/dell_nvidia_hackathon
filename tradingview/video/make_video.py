@@ -30,6 +30,8 @@ OUT.mkdir(parents=True, exist_ok=True)
 MOCK = {
     "title": "THE CLOSING BELL",
     "date": "Friday, June 14, 2026",
+    "stamp": "Friday, June 14, 2026 · 4:05 PM ET",
+    "time": "4:05 PM ET",
     "headline": "After the Bell",
     "indices": [
         {"name": "S&P 500", "value": "6,945", "change_pct": 0.62},
@@ -54,7 +56,9 @@ MOCK = {
 }
 
 MOCK_OPENING = {
-    "title": "THE OPENING BELL", "date": "Friday, June 14, 2026", "headline": "Before the Bell",
+    "title": "THE OPENING BELL", "date": "Friday, June 14, 2026",
+    "stamp": "Friday, June 14, 2026 · 8:15 AM ET", "time": "8:15 AM ET",
+    "headline": "Before the Bell",
     "scoreboard_title": "U.S. Stock Futures",
     "indices": [
         {"name": "S&P 500 Futures", "value": "6,958", "change_pct": 0.34},
@@ -99,7 +103,8 @@ def from_live_opening():
                         "value": f"{v:,.0f}" if v > 1000 else f"{v:,.2f}",
                         "change_pct": round(f.get("change_pct") or 0, 2)})
     return {
-        "title": "THE OPENING BELL", "date": ctx["date_str"], "headline": "Before the Bell",
+        "title": "THE OPENING BELL", "date": ctx["date_str"],
+        "stamp": ctx["generated_at"], "time": ctx["time_str"], "headline": "Before the Bell",
         "scoreboard_title": "U.S. Stock Futures", "indices": fut,
         "bars_title": "Overnight & Global Markets",
         "sectors": [{"name": o["name"], "change_pct": round(o["change_pct"], 2)} for o in ctx["overnight"]],
@@ -129,7 +134,8 @@ def from_live():
     tone = "Risk tone " + ("constructive" if (ctx.get("best_sector") and idx and idx[0]["change_pct"] >= 0) else "cautious") + \
            f" — {ctx['breadth']['adv']} advancers versus {ctx['breadth']['decl']} decliners across the tracked universe."
     return {
-        "title": "THE CLOSING BELL", "date": ctx["date_str"], "headline": "After the Bell",
+        "title": "THE CLOSING BELL", "date": ctx["date_str"],
+        "stamp": ctx["generated_at"], "time": ctx["time_str"], "headline": "After the Bell",
         "indices": idx,
         "sectors": [{"name": s["name"], "change_pct": round(s["change_pct"], 2)} for s in ctx["sectors"]],
         "gainers": [{"symbol": g["symbol"], "change_pct": round(g["change_pct"], 2)} for g in ctx["gainers"]],
@@ -143,7 +149,8 @@ def build_script(d):
     def updown(p):
         return "gained" if p >= 0 else "fell"
 
-    parts = [f"Welcome to the Closing Bell for {d.get('date','today')}."]
+    when = f", as of the {d['time']} close" if d.get("time") else ""
+    parts = [f"Welcome to the Closing Bell for {d.get('date','today')}{when}."]
     idx = d.get("indices", [])
     if idx:
         spx = idx[0]
@@ -178,7 +185,8 @@ def build_script_opening(d):
     def updown(p):
         return "are pointing higher" if p >= 0 else "are pointing lower"
 
-    parts = [f"Good morning. Here's what to watch before the opening bell on {d.get('date','today')}."]
+    when = f", as of {d['time']}" if d.get("time") else ""
+    parts = [f"Good morning. Here's what to watch before the opening bell on {d.get('date','today')}{when}."]
     fut = d.get("indices", [])
     if fut:
         s = fut[0]
