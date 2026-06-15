@@ -1,6 +1,6 @@
 #app.py
 
-from flask import Flask, render_template, jsonify, send_file, request, make_response, redirect, url_for, abort, Response
+from flask import Flask, render_template, jsonify, send_file, request, make_response, redirect, url_for, abort, Response, stream_with_context
 from flask_cors import CORS
 import yfinance as yf
 import pandas as pd
@@ -198,9 +198,15 @@ def _log_request_end(response):
     try:
         rid = getattr(request, "_rid", "--------")
         dur = (time.time() - getattr(request, "_t0", time.time())) * 1000
-        size = response.calculate_content_length()
+        # NEVER materialize a streaming response (SSE) to measure its size —
+        # calculate_content_length() would drain the generator before it's sent.
+        if response.direct_passthrough or response.mimetype == "text/event-stream":
+            size = "stream"
+        else:
+            n = response.calculate_content_length()
+            size = f"{n}b" if n is not None else "?b"
         line = (f"[{rid}] <-- {response.status_code} {request.method} "
-                f"{request.path}  {dur:.0f}ms  {size if size is not None else '?'}b")
+                f"{request.path}  {dur:.0f}ms  {size}")
         (api_logger.warning if response.status_code >= 400 else api_logger.info)(line)
     except Exception:  # noqa: BLE001 - logging must never break a response
         pass
@@ -3198,8 +3204,9 @@ def analyze_assets():
 
 
 def _sse(event, payload):
-    """Format one Server-Sent Event frame."""
-    return f"event: {event}\ndata: {json.dumps(payload, default=str)}\n\n"
+    """Format one Server-Sent Event frame as bytes (direct_passthrough streams
+    raw bytes straight to the WSGI server)."""
+    return f"event: {event}\ndata: {json.dumps(payload, default=str)}\n\n".encode("utf-8")
 
 
 @app.route('/api/analyze_assets/stream', methods=['POST'])
@@ -3281,11 +3288,16 @@ def analyze_assets_stream():
                                      'analysis_id': row_id})
         yield _sse('done', {'symbols': symbols})
 
-    return Response(generate(), mimetype='text/event-stream', headers={
-        'Cache-Control': 'no-cache',
-        'X-Accel-Buffering': 'no',   # don't let proxies buffer the stream
-        'Connection': 'keep-alive',
-    })
+    resp = Response(stream_with_context(generate()), mimetype='text/event-stream',
+                    headers={
+                        'Cache-Control': 'no-cache',
+                        'X-Accel-Buffering': 'no',   # don't let proxies buffer
+                        'Connection': 'keep-alive',
+                    })
+    # Stream the iterable straight to the WSGI server — never collect it into a
+    # sequence (which would set Content-Length and defeat live streaming).
+    resp.direct_passthrough = True
+    return resp
 
 
 # Ensure this is at the end of your file
