@@ -1,11 +1,15 @@
--- intel/schema.sql
+-- intel/schema.sql  (PostgreSQL)
 -- The contract between the news-intelligence daemon (writer, on the DGX Spark)
--- and the report renderer (read-only). Keep these columns stable; the renderer
--- (intel_reader.get_top_stories) selects exactly these names.
+-- and the report renderer (read-only). Keep these column names stable; the
+-- renderer (pg_store.get_top_stories / intel_reader) selects exactly these.
 --
--- Writer setup (in the daemon):
---   PRAGMA journal_mode=WAL;   -- so the renderer can read while we write
-PRAGMA journal_mode = WAL;
+-- Storage is now PostgreSQL (the same DB the app uses) instead of a separate
+-- SQLite file — one database, no confusion. The app auto-creates this table via
+-- pg_store._ensure_schema(); this file documents the contract for the daemon.
+--
+-- Writer setup (in the daemon): connect with the app's DATABASE_URL, e.g.
+--   postgresql:///tradingview     (local peer auth)
+-- and INSERT/UPSERT rows with these columns. tradeable_today/processed are 1/0.
 
 CREATE TABLE IF NOT EXISTS stories (
     id              TEXT PRIMARY KEY,      -- md5(title) or md5(name+filing_id)
@@ -13,9 +17,9 @@ CREATE TABLE IF NOT EXISTS stories (
     body            TEXT,
     source          TEXT,                  -- reuters_business | gdelt | sec_edgar | ...
     published_at    TEXT,
-    sentiment       REAL,                  -- signed: + bullish, - bearish (FinBERT)
-    relevance       REAL,                  -- 0..1 financial-relevance prefilter
-    magnitude       TEXT,                  -- 'high' | 'medium' | 'low'  (>2% / 0.5-2% / <0.5%)
+    sentiment       DOUBLE PRECISION,      -- signed: + bullish, - bearish (FinBERT)
+    relevance       DOUBLE PRECISION,      -- 0..1 financial-relevance prefilter
+    magnitude       TEXT,                  -- 'high' | 'medium' | 'low'
     tickers         TEXT,                  -- JSON array, e.g. '["NVDA","AMD"]'
     sector_impact   TEXT,                  -- 'Semiconductors: negative'
     one_liner       TEXT,                  -- tradeable headline (drives the report row)
@@ -24,7 +28,7 @@ CREATE TABLE IF NOT EXISTS stories (
     impact_type     TEXT,                  -- geopolitical|regulatory|earnings|macro|...
     tradeable_today INTEGER DEFAULT 0,     -- 1 if it moves the tape pre-market today
     processed       INTEGER DEFAULT 0,     -- 1 after Stage 2 analysis
-    created_at      TEXT DEFAULT CURRENT_TIMESTAMP
+    created_at      TIMESTAMPTZ DEFAULT now()
 );
 
 -- The renderer query filters on these, so index them:

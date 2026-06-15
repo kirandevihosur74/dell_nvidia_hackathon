@@ -1,20 +1,31 @@
 #!/usr/bin/env python3
 """
-Create a mock opening_bell.db so the report renderer's News Intelligence
-section can be tested WITHOUT running the FinBERT/Llama daemon.
+Seed mock news-intelligence stories into Postgres so the report renderer's
+News Intelligence section can be tested WITHOUT running the FinBERT/Llama daemon.
 
-    python intel/seed_mock.py            # writes tradingview/opening_bell.db
-    INTEL_DB=/tmp/x.db python intel/seed_mock.py
+    python intel/seed_mock.py
 
-The real daemon (ingestion -> FinBERT -> Llama-3.3-70B) writes the same
-schema; this just hand-seeds a few rows shaped exactly like its output.
+Storage is now Postgres (via pg_store), the same DB the app uses — run it from
+the tradingview/ dir so .env (DATABASE_URL) and pg_store resolve. The real
+daemon (ingestion -> FinBERT -> Llama-3.3-70B) writes the same `stories`
+columns; this just hand-seeds a few rows shaped exactly like its output.
 """
 import json
 import os
-import sqlite3
+import sys
+from datetime import datetime, timedelta
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-DEST = os.getenv("INTEL_DB", os.path.join(HERE, "..", "opening_bell.db"))
+# Make the parent dir importable (pg_store lives in tradingview/) and load .env.
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_PARENT = os.path.dirname(_HERE)
+sys.path.insert(0, _PARENT)
+try:
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(_PARENT, ".env"))
+except Exception:
+    pass
+
+import pg_store  # noqa: E402
 
 MOCK = [
     ("nvda-china", "U.S. tightens H20 export controls to China",
@@ -51,27 +62,21 @@ MOCK = [
 
 
 def main():
-    dest = os.path.abspath(DEST)
-    con = sqlite3.connect(dest)
-    con.execute("PRAGMA journal_mode=WAL")
-    with open(os.path.join(HERE, "schema.sql")) as f:
-        con.executescript(f.read())
-    con.execute("DELETE FROM stories")
+    now = datetime.utcnow()
+    rows = []
     for (sid, title, source, sentiment, magnitude, tickers, sector,
          one_liner, bull, bear, itype, relevance) in MOCK:
-        con.execute(
-            """INSERT INTO stories
-               (id,title,body,source,published_at,sentiment,relevance,magnitude,
-                tickers,sector_impact,one_liner,bull_case,bear_case,impact_type,
-                tradeable_today,processed,created_at)
-               VALUES (?,?,?,?,datetime('now'),?,?,?,?,?,?,?,?,?,1,1,datetime('now','-2 hours'))""",
-            (sid, title, "", source, sentiment, relevance, magnitude,
-             json.dumps(tickers), sector, one_liner, bull, bear, itype),
-        )
-    con.commit()
-    n = con.execute("SELECT COUNT(*) FROM stories").fetchone()[0]
-    con.close()
-    print(f"seeded {n} stories -> {dest}")
+        rows.append({
+            "id": sid, "title": title, "body": "", "source": source,
+            "published_at": now.isoformat(), "sentiment": sentiment,
+            "relevance": relevance, "magnitude": magnitude,
+            "tickers": json.dumps(tickers), "sector_impact": sector,
+            "one_liner": one_liner, "bull_case": bull, "bear_case": bear,
+            "impact_type": itype, "tradeable_today": 1, "processed": 1,
+            "created_at": now - timedelta(hours=2),
+        })
+    n = pg_store.replace_stories(rows)
+    print(f"seeded {n} stories -> Postgres ({pg_store.DATABASE_URL})")
 
 
 if __name__ == "__main__":

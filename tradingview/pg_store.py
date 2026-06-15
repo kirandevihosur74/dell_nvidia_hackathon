@@ -81,6 +81,30 @@ def _ensure_schema():
                 ON asset_analyses (symbol);
             CREATE INDEX IF NOT EXISTS idx_asset_analyses_created_at
                 ON asset_analyses (created_at DESC);
+            -- News-intelligence stories (was SQLite opening_bell.db; now here so
+            -- the app uses one database). Writer = the DGX Spark daemon; reader =
+            -- intel_reader/report renderer. Column names are the stable contract.
+            CREATE TABLE IF NOT EXISTS stories (
+                id              TEXT PRIMARY KEY,
+                title           TEXT,
+                body            TEXT,
+                source          TEXT,
+                published_at    TEXT,
+                sentiment       DOUBLE PRECISION,
+                relevance       DOUBLE PRECISION,
+                magnitude       TEXT,
+                tickers         TEXT,
+                sector_impact   TEXT,
+                one_liner       TEXT,
+                bull_case       TEXT,
+                bear_case       TEXT,
+                impact_type     TEXT,
+                tradeable_today INTEGER DEFAULT 0,
+                processed       INTEGER DEFAULT 0,
+                created_at      TIMESTAMPTZ DEFAULT now()
+            );
+            CREATE INDEX IF NOT EXISTS idx_stories_feed
+                ON stories (tradeable_today, processed, created_at);
             """
         )
     _schema_ready = True
@@ -202,3 +226,86 @@ def save_asset_analysis(symbol, question, *, answer=None, error=None,
     except Exception as exc:  # noqa: BLE001 - persistence must not sink the request
         print(f"[pg_store] save_asset_analysis failed: {exc}")
         return None
+
+
+# --- News-intelligence stories (renderer reads these) ----------------------
+
+def stories_available():
+    """True if Postgres is reachable and the stories table exists."""
+    try:
+        _ensure_schema()
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def get_top_stories(limit=6, hours=12):
+    """Top tradeable, processed stories from the last `hours`, ranked by
+    magnitude then |sentiment|, shaped exactly like the old SQLite reader.
+    Returns [] on any problem (graceful)."""
+    import json
+    try:
+        _ensure_schema()
+        with _connect() as conn, conn.cursor(
+            cursor_factory=psycopg2.extras.RealDictCursor
+        ) as cur:
+            cur.execute(
+                """
+                SELECT title, source, one_liner, tickers, magnitude, sector_impact,
+                       bull_case, bear_case, sentiment, impact_type, published_at
+                FROM stories
+                WHERE tradeable_today = 1 AND processed = 1
+                  AND created_at >= now() - make_interval(hours => %s)
+                ORDER BY CASE magnitude
+                            WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
+                         ABS(COALESCE(sentiment, 0)) DESC
+                LIMIT %s
+                """,
+                (int(hours), int(limit)),
+            )
+            rows = cur.fetchall()
+    except Exception as exc:  # noqa: BLE001
+        print(f"[pg_store] get_top_stories failed: {exc}")
+        return []
+
+    out = []
+    for r in rows:
+        try:
+            tickers = json.loads(r["tickers"]) if r["tickers"] else []
+        except Exception:  # noqa: BLE001
+            tickers = []
+        sent = r["sentiment"] or 0.0
+        out.append({
+            "title": r["title"],
+            "source": (r["source"] or "").replace("_", " ").title(),
+            "one_liner": r["one_liner"] or r["title"],
+            "tickers": tickers[:5],
+            "magnitude": (r["magnitude"] or "low").lower(),
+            "sector_impact": r["sector_impact"] or "",
+            "bull": r["bull_case"] or "",
+            "bear": r["bear_case"] or "",
+            "sentiment": sent,
+            "bullish": sent >= 0,
+            "impact_type": (r["impact_type"] or "").replace("_", " "),
+        })
+    return out
+
+
+def replace_stories(rows):
+    """Replace all stories (used by the mock seeder). `rows` is a list of dicts
+    with the raw column names. Returns the row count."""
+    _ensure_schema()
+    cols = ("id", "title", "body", "source", "published_at", "sentiment",
+            "relevance", "magnitude", "tickers", "sector_impact", "one_liner",
+            "bull_case", "bear_case", "impact_type", "tradeable_today",
+            "processed", "created_at")
+    with _connect() as conn, conn.cursor() as cur:
+        cur.execute("DELETE FROM stories")
+        for r in rows:
+            cur.execute(
+                f"INSERT INTO stories ({', '.join(cols)}) "
+                f"VALUES ({', '.join(['%s'] * len(cols))})",
+                tuple(r.get(c) for c in cols),
+            )
+        cur.execute("SELECT count(*) FROM stories")
+        return cur.fetchone()[0]
