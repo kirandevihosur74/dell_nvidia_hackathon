@@ -444,67 +444,93 @@ def get_top_news(stock):
         ]}), 200  # Return 200 with default data
 
 
+# --- market_data hardening (avoid Yahoo 429s) --------------------------------
+# Reuse one Chrome-impersonating session (curl_cffi) so we present a consistent,
+# bot-detection-resistant TLS fingerprint, and cache results briefly so repeated
+# "Run" taps / multiple symbols don't hammer Yahoo.
+_md_session = curl_requests.Session(impersonate="chrome")
+_md_cache = {}
+_md_cache_lock = threading.Lock()
+MARKET_DATA_TTL = 60  # seconds
+
+
 @app.route('/api/market_data/<symbol>', methods=['GET'])
 def get_market_data(symbol):
     try:
-        # Import yfinance 
         import yfinance as yf
         from datetime import datetime
-        
-        # Handle potential errors in the symbol
+
         if not symbol or len(symbol) < 1:
             return jsonify({"error": "Invalid symbol provided"}), 400
-            
-        # Fetch the ticker data
-        ticker = yf.Ticker(symbol)
-        
-        # Get current market data
-        ticker_info = ticker.info
-        
-        # Get recent history for calculating change
+
+        symbol = symbol.upper()
+
+        # Serve a recent cached value if we have one (collapses bursts).
+        now = time.time()
+        with _md_cache_lock:
+            cached = _md_cache.get(symbol)
+            if cached and (now - cached["_ts"]) < MARKET_DATA_TTL:
+                return jsonify(cached["data"])
+
+        # Fetch over the shared impersonated session. Derive everything from
+        # history(2d) + fast_info, avoiding the heavily-throttled ticker.info
+        # (which returns None when rate-limited and used to crash with NoneType).
+        ticker = yf.Ticker(symbol, session=_md_session)
         hist = ticker.history(period="2d")
-        
-        # If we have at least 2 days of data, calculate change
+
+        if hist is None or hist.empty:
+            return jsonify({"error": f"No market data available for {symbol}"}), 404
+
         if len(hist) >= 2:
             current_price = hist['Close'].iloc[-1]
             previous_price = hist['Close'].iloc[-2]
-            change = current_price - previous_price
-            change_percent = (change / previous_price) * 100
         else:
-            # Fallback if we don't have enough historical data
-            current_price = ticker_info.get('currentPrice', ticker_info.get('regularMarketPrice', 0))
-            previous_price = ticker_info.get('previousClose', current_price)
-            change = current_price - previous_price
-            change_percent = (change / previous_price) * 100 if previous_price else 0
-        
-        # Get the latest volume
-        volume = hist['Volume'].iloc[-1] if not hist['Volume'].empty else ticker_info.get('volume', 0)
-        
-        # Build response data. Cast numpy scalars (from pandas .iloc) to native
-        # Python types so Flask's jsonify can serialize them.
+            current_price = hist['Close'].iloc[-1]
+            previous_price = current_price
+        change = current_price - previous_price
+        change_percent = (change / previous_price) * 100 if previous_price else 0
+        volume = hist['Volume'].iloc[-1] if not hist['Volume'].empty else 0
+
+        def _fast(attr, default=0):
+            try:
+                val = getattr(ticker.fast_info, attr)
+                return val if val is not None else default
+            except Exception:
+                return default
+
         market_data = {
             "symbol": symbol,
             "currentPrice": float(current_price),
             "previousClose": float(previous_price),
             "change": float(change),
             "changePercent": float(change_percent),
-            "volume": int(volume) if volume is not None else 0,
+            "volume": int(volume) if volume == volume else 0,  # NaN-safe
             "high": float(hist['High'].iloc[-1]) if not hist['High'].empty else 0,
             "low": float(hist['Low'].iloc[-1]) if not hist['Low'].empty else 0,
             "open": float(hist['Open'].iloc[-1]) if not hist['Open'].empty else 0,
-            "marketCap": ticker_info.get('marketCap', 0),
-            "peRatio": ticker_info.get('trailingPE', 0),
-            "dividend": ticker_info.get('dividendRate', 0),
-            "yield": ticker_info.get('dividendYield', 0),
+            "marketCap": _fast("market_cap"),
+            "peRatio": 0,   # not on fast_info; skip the throttled .info call
+            "dividend": 0,
+            "yield": 0,
             "timestamp": datetime.now().isoformat()
         }
-        
-        # Return the market data
+
+        with _md_cache_lock:
+            _md_cache[symbol] = {"_ts": now, "data": market_data}
+
         return jsonify(market_data)
-        
+
     except Exception as e:
-        print(f"Error fetching market data for {symbol}: {str(e)}")
-        return jsonify({"error": f"Failed to fetch market data: {str(e)}"}), 500
+        msg = str(e)
+        print(f"Error fetching market data for {symbol}: {msg}")
+        # On a rate-limit, serve the last good value if we have one.
+        if "Too Many Requests" in msg or "Rate limited" in msg:
+            with _md_cache_lock:
+                stale = _md_cache.get(symbol.upper())
+            if stale:
+                return jsonify(stale["data"])
+            return jsonify({"error": "Rate limited by Yahoo. Try again shortly."}), 429
+        return jsonify({"error": f"Failed to fetch market data: {msg}"}), 500
     
 @app.route('/api/chatbot', methods=['POST'])
 def chatbot():
