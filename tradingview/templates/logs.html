@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Backend Live Logs</title>
+<style>
+  :root {
+    --bg:#0d1117; --panel:#161b22; --border:#30363d; --txt:#c9d1d9;
+    --dim:#6e7681; --req:#58a6ff; --ok:#3fb950; --warn:#d29922; --err:#f85149;
+    --accent:#a371f7;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--txt);
+         font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:13px; }
+  header { position:sticky; top:0; z-index:10; background:var(--panel);
+           border-bottom:1px solid var(--border); padding:10px 16px;
+           display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+  header h1 { font-size:15px; margin:0; font-weight:600; letter-spacing:.3px; }
+  .dot { width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:6px; }
+  .dot.on { background:var(--ok); box-shadow:0 0 6px var(--ok); }
+  .dot.off { background:var(--err); box-shadow:0 0 6px var(--err); }
+  .stats { display:flex; gap:14px; margin-left:auto; color:var(--dim); }
+  .stats b { color:var(--txt); }
+  .stat-req b{color:var(--req)} .stat-ok b{color:var(--ok)} .stat-err b{color:var(--err)}
+  .controls { display:flex; gap:8px; align-items:center; }
+  input,button { background:#0d1117; color:var(--txt); border:1px solid var(--border);
+                 border-radius:6px; padding:5px 9px; font:inherit; }
+  button { cursor:pointer; } button:hover { border-color:var(--accent); }
+  #log { padding:8px 16px 60px; }
+  .row { padding:2px 6px; border-radius:4px; white-space:pre-wrap; word-break:break-word;
+         border-left:2px solid transparent; line-height:1.5; }
+  .row:hover { background:#161b2255; }
+  .row.req  { border-left-color:var(--req); }
+  .row.ok   { border-left-color:var(--ok); }
+  .row.warn { border-left-color:var(--warn); }
+  .row.err  { border-left-color:var(--err); }
+  .t   { color:var(--dim); }
+  .rid { color:var(--accent); }
+  .arrow-in  { color:var(--req); font-weight:700; }
+  .arrow-out { color:var(--ok); font-weight:700; }
+  .bang { color:var(--err); font-weight:700; }
+  .method { color:#ffa657; font-weight:600; }
+  .code-2 { color:var(--ok); font-weight:700; } .code-3 { color:var(--req); font-weight:700; }
+  .code-4, .code-5 { color:var(--err); font-weight:700; }
+  .ip { color:var(--accent); } .meta { color:var(--dim); } .body { color:#7ee787; }
+  .hidden { display:none; }
+  #empty { color:var(--dim); padding:20px 16px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>⬤ Backend Live Logs</h1>
+  <span><span id="dot" class="dot off"></span><span id="conn">connecting…</span></span>
+  <div class="controls">
+    <input id="filter" placeholder="filter (path, IP, method…)" size="22">
+    <button id="pause">⏸ Pause autoscroll</button>
+    <button id="clear">Clear</button>
+  </div>
+  <div class="stats">
+    <span class="stat-req">req <b id="c-req">0</b></span>
+    <span class="stat-ok">2xx <b id="c-ok">0</b></span>
+    <span class="stat-err">errors <b id="c-err">0</b></span>
+    <span>total <b id="c-all">0</b></span>
+  </div>
+</header>
+<div id="log"><div id="empty">Waiting for backend activity… hit any endpoint and it appears here live.</div></div>
+
+<script>
+const logEl = document.getElementById('log');
+const dot = document.getElementById('dot'), conn = document.getElementById('conn');
+const cReq=document.getElementById('c-req'), cOk=document.getElementById('c-ok'),
+      cErr=document.getElementById('c-err'), cAll=document.getElementById('c-all');
+const filterEl = document.getElementById('filter');
+let counts={req:0,ok:0,err:0,all:0}, autoscroll=true, filter='';
+
+// Hide the dashboard's own polling so it isn't noisy/recursive.
+const SELF = /\/logs(\/stream)?\b|\/favicon/;
+
+function esc(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+function classify(line){
+  if (/\s!!\s/.test(line)) return 'err';
+  let m = line.match(/<--\s+(\d{3})/);
+  if (m){ const c=m[1][0]; return c==='2'?'ok':(c==='3'?'req':'err'); }
+  if (/-->/.test(line)) return 'req';
+  return '';
+}
+
+function render(line){
+  // 00:26:47 INFO [1f4965dd] --> GET /path from IP   body=...
+  let html = esc(line)
+    .replace(/^(\S+)\s+(\w+)\s+\[([0-9a-f]+)\]/,
+      '<span class="t">$1</span> <span class="meta">$2</span> <span class="rid">[$3]</span>')
+    .replace(/--&gt;/, '<span class="arrow-in">--&gt;</span>')
+    .replace(/&lt;--/, '<span class="arrow-out">&lt;--</span>')
+    .replace(/\s!!\s/, ' <span class="bang">!!</span> ')
+    .replace(/\b(GET|POST|PUT|DELETE|PATCH)\b/, '<span class="method">$1</span>')
+    .replace(/(&lt;--\s*<\/span>\s*)(\d{3})/, (a,p,c)=>p+'<span class="code-'+c[0]+'">'+c+'</span>')
+    .replace(/\bfrom\s+([0-9a-f:.]+)/, 'from <span class="ip">$1</span>')
+    .replace(/(\d+ms|\d+b)/g, '<span class="meta">$1</span>')
+    .replace(/(body=.*)$/, '<span class="body">$1</span>');
+  return html;
+}
+
+function add(line){
+  if (SELF.test(line)) return;
+  const empty=document.getElementById('empty'); if(empty) empty.remove();
+  const kind = classify(line);
+  counts.all++; cAll.textContent=counts.all;
+  if(/-->/.test(line)){counts.req++;cReq.textContent=counts.req;}
+  if(kind==='ok'&&/<--/.test(line)){counts.ok++;cOk.textContent=counts.ok;}
+  if(kind==='err'){counts.err++;cErr.textContent=counts.err;}
+  const div=document.createElement('div');
+  div.className='row '+kind; div.innerHTML=render(line); div.dataset.raw=line.toLowerCase();
+  if(filter && !div.dataset.raw.includes(filter)) div.classList.add('hidden');
+  logEl.appendChild(div);
+  if(logEl.children.length>3000) logEl.removeChild(logEl.firstChild);
+  if(autoscroll) window.scrollTo(0,document.body.scrollHeight);
+}
+
+function connect(){
+  const es=new EventSource('/logs/stream');
+  es.onopen =()=>{ dot.className='dot on'; conn.textContent='live'; };
+  es.onerror=()=>{ dot.className='dot off'; conn.textContent='reconnecting…'; };
+  es.onmessage=e=>{ if(e.data) add(e.data); };
+}
+
+filterEl.oninput=e=>{ filter=e.target.value.toLowerCase();
+  for(const r of logEl.querySelectorAll('.row'))
+    r.classList.toggle('hidden', filter && !r.dataset.raw.includes(filter)); };
+document.getElementById('pause').onclick=e=>{ autoscroll=!autoscroll;
+  e.target.textContent=autoscroll?'⏸ Pause autoscroll':'▶ Resume autoscroll';
+  if(autoscroll) window.scrollTo(0,document.body.scrollHeight); };
+document.getElementById('clear').onclick=()=>{ logEl.innerHTML=''; };
+connect();
+</script>
+</body>
+</html>

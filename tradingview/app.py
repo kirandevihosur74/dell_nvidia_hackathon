@@ -17,6 +17,9 @@ import cv2
 import numpy as np
 import requests
 import re
+import sys
+import subprocess
+import threading
 import traceback  # Import traceback for error logging
 from pathlib import Path  # Import Path from pathlib
 from types import SimpleNamespace
@@ -3298,6 +3301,129 @@ def analyze_assets_stream():
     # sequence (which would set Content-Length and defeat live streaming).
     resp.direct_passthrough = True
     return resp
+
+
+@app.route('/logs')
+def logs_page():
+    """Live log dashboard — renders the page that streams /logs/stream."""
+    return render_template('logs.html')
+
+
+@app.route('/logs/stream')
+def logs_stream():
+    """SSE tail of logs/api.log: replays the recent backlog then follows new
+    lines as requests hit the backend. EventSource-friendly (GET)."""
+    log_path = os.path.join(_LOG_DIR, 'api.log')
+
+    def generate():
+        last_ping = time.time()
+        try:
+            f = open(log_path, 'r')
+        except OSError:
+            yield b'data: (log file not found yet)\n\n'
+            return
+        try:
+            # Replay the last ~80 lines so the page isn't blank on load.
+            for ln in f.readlines()[-80:]:
+                ln = ln.rstrip('\n')
+                if ln:
+                    yield f'data: {ln}\n\n'.encode('utf-8')
+            f.seek(0, os.SEEK_END)
+            while True:
+                line = f.readline()
+                if line:
+                    ln = line.rstrip('\n')
+                    if ln:
+                        yield f'data: {ln}\n\n'.encode('utf-8')
+                else:
+                    # Handle log rotation: if the file shrank, reopen it.
+                    try:
+                        if os.path.getsize(log_path) < f.tell():
+                            f.close()
+                            f = open(log_path, 'r')
+                    except OSError:
+                        pass
+                    time.sleep(0.4)
+                    if time.time() - last_ping > 15:   # keep the connection alive
+                        last_ping = time.time()
+                        yield b': ping\n\n'
+        except GeneratorExit:
+            pass
+        finally:
+            try:
+                f.close()
+            except Exception:
+                pass
+
+    resp = Response(stream_with_context(generate()), mimetype='text/event-stream',
+                    headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no',
+                             'Connection': 'keep-alive'})
+    resp.direct_passthrough = True
+    return resp
+
+
+# --- Bell videos (render via video/make_video.py, cache per-day, serve MP4) ---
+_VIDEO_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'video')
+_VIDEO_OUT = os.path.join(_VIDEO_DIR, 'out')
+_video_locks = {'opening': threading.Lock(), 'closing': threading.Lock()}
+
+
+def _bell_video_fresh(path):
+    """True if a render exists and was made today (so we serve from cache)."""
+    try:
+        from datetime import datetime as _dt
+        return (os.path.exists(path) and
+                _dt.fromtimestamp(os.path.getmtime(path)).date() == _dt.now().date())
+    except OSError:
+        return False
+
+
+def _render_bell_video(bell):
+    """Render the {opening,closing} bell MP4 via make_video.py (live data +
+    local Piper TTS narration). Raises on failure/timeout."""
+    env = dict(os.environ)
+    # make_video.py shells out to `manim` — ensure the venv bin is on PATH.
+    env['PATH'] = os.path.dirname(sys.executable) + os.pathsep + env.get('PATH', '')
+    env.setdefault('TTS_BASE_URL', 'http://127.0.0.1:5050/v1')  # local Piper
+    env.setdefault('TTS_MODEL', 'piper')
+    env.setdefault('TTS_API_KEY', 'local')
+    flag = '--opening' if bell == 'opening' else '--closing'
+    subprocess.run([sys.executable, 'make_video.py', flag, '-q', 'm'],
+                   cwd=_VIDEO_DIR, env=env, check=True, timeout=600,
+                   capture_output=True, text=True)
+
+
+def _serve_bell_video(bell):
+    target = os.path.join(_VIDEO_OUT, f'{bell}_bell.mp4')
+    refresh = request.args.get('refresh', '').lower() in ('1', 'true', 'yes')
+    if refresh or not _bell_video_fresh(target):
+        with _video_locks[bell]:                       # serialize concurrent renders
+            if refresh or not _bell_video_fresh(target):   # re-check after the lock
+                api_logger.info(f"[video] rendering {bell} bell…")
+                try:
+                    _render_bell_video(bell)
+                except subprocess.TimeoutExpired:
+                    return jsonify({'error': 'video render timed out'}), 504
+                except subprocess.CalledProcessError as e:
+                    tail = (e.stderr or e.stdout or '')[-600:]
+                    api_logger.error(f"[video] {bell} render failed: {tail}")
+                    return jsonify({'error': 'video render failed', 'detail': tail}), 500
+    if not os.path.exists(target):
+        return jsonify({'error': 'video not available'}), 404
+    return send_file(target, mimetype='video/mp4', conditional=True,
+                     download_name=f'{bell}_bell.mp4')
+
+
+@app.route('/opening-bell/video')
+def opening_bell_video():
+    """Render (cached per day) and serve the Opening Bell MP4. ?refresh=1 forces."""
+    return _serve_bell_video('opening')
+
+
+@app.route('/closing-bell/video')
+def closing_bell_video():
+    """Render (cached per day) and serve the Closing Bell MP4. ?refresh=1 forces."""
+    return _serve_bell_video('closing')
 
 
 # Ensure this is at the end of your file
