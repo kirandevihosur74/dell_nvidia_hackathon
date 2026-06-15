@@ -3,7 +3,7 @@
 Renderer-side reader for the local news-intelligence pipeline.
 
 The heavy ingestion/classification daemon (GDELT + RSS + SEC EDGAR -> FinBERT
--> local Llama-3.3-70B on the DGX Spark) writes market-moving stories into a
+-> local Llama-3.3-70B on the Dell GB10 Max) writes market-moving stories into a
 `stories` table. This module is the *only* thing the report renderer imports
 from that pipeline.
 

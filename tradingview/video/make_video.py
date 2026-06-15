@@ -285,8 +285,8 @@ def tts(script, voice):
     Synthesize narration via any OpenAI-compatible /v1/audio/speech endpoint.
 
     Defaults to OpenAI (tts-1). Point at a self-hosted Higgs Audio v3 on the
-    DGX Spark — or the Boson API — with NO code change, just env vars:
-        TTS_BASE_URL=http://<dgx-spark-host>:8000/v1   # sgl-omni serve ...
+    Dell GB10 Max — or the Boson API — with NO code change, just env vars:
+        TTS_BASE_URL=http://<gb10-host>:8000/v1   # sgl-omni serve ...
         TTS_MODEL=higgs-audio-v3-tts
         TTS_API_KEY=...        # or BOSON_API_KEY for api.boson.ai
         TTS_VOICE=<preset or cloned voice>

@@ -1,5 +1,5 @@
 -- intel/schema.sql  (PostgreSQL)
--- The contract between the news-intelligence daemon (writer, on the DGX Spark)
+-- The contract between the news-intelligence daemon (writer, on the Dell GB10 Max)
 -- and the report renderer (read-only). Keep these column names stable; the
 -- renderer (pg_store.get_top_stories / intel_reader) selects exactly these.
 --

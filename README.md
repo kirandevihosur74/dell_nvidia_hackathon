@@ -22,11 +22,11 @@ Same brand, same local-first philosophy: the **Bell** rings on-prem.
 
 ## Why local-first
 
-Everything heavy is designed to run on an **NVIDIA DGX Spark** (or any local GPU box), not a SaaS API:
+Everything heavy is designed to run on a **Dell GB10 Max** (or any local GPU box), not a SaaS API:
 
 - **Privacy & control** — market positions, meetings, and prompts never leave your hardware.
 - **Zero marginal cost** — local Llama-3.3-70B / Nemotron / FinBERT / Higgs-Audio inference instead of per-token cloud billing.
-- **Drop-in cloud fallback** — every AI call is **OpenAI-compatible**, so you can point at OpenAI today and your DGX Spark tomorrow by changing two env vars.
+- **Drop-in cloud fallback** — every AI call is **OpenAI-compatible**, so you can point at OpenAI today and your Dell GB10 Max tomorrow by changing two env vars.
 
 ---
 
@@ -34,7 +34,7 @@ Everything heavy is designed to run on an **NVIDIA DGX Spark** (or any local GPU
 
 ```
                          ┌──────────────────────────────────────────────┐
-   DATA / EVENTS         │            NVIDIA DGX Spark (local)           │
+   DATA / EVENTS         │             Dell GB10 Max (local)            │
  ┌───────────────┐       │  ┌────────────┐  ┌───────────────────────┐   │
  │ Yahoo Finance │──────▶│  │  Nemotron  │  │  Llama-3.3-70B (vLLM/  │   │
  │ GDELT · RSS   │       │  │  Gateway   │  │  Ollama) · FinBERT ·   │   │
@@ -90,14 +90,14 @@ market briefings from live data, and renders them as both HTML and narrated vide
 - **Equity Research Brief** — multi-ticker comparison with an AI verdict, per-ticker deep dives, and
   cited news.
 
-**News intelligence (24/7 daemon on the DGX Spark):**
+**News intelligence (24/7 daemon on the Dell GB10 Max):**
 `GDELT + RSS + SEC EDGAR` ingestion → **FinBERT** fast relevance/sentiment filter → **Llama-3.3-70B**
 deep analysis (tickers, magnitude, bull/bear) → **SQLite**. The report renderer reads that table
 **read-only** and injects the top stories — fully decoupled from the heavy pipeline.
 
 **Narrated video:** **Manim** + **FFmpeg** turn the same data into an "After the Bell" explainer
 (regime, Question of the Day, scoreboard, levels, movers, sources), voiced by **OpenAI-compatible
-TTS** — `tts-1` or self-hosted **Higgs-Audio v3** on the DGX Spark.
+TTS** — `tts-1` or self-hosted **Higgs-Audio v3** on the Dell GB10 Max.
 
 **Grounded asset analysis (API):** `/api/analyze_assets` answers free-form questions about a ticker
 strictly from fetched data — declaring which **intents** it could and couldn't fulfil so the model
@@ -120,7 +120,7 @@ SSE streaming · smtplib.
 
 | Layer | What we use |
 |---|---|
-| **Local inference (DGX Spark)** | NVIDIA Nemotron (gateway agents) · Llama-3.3-70B (vLLM/Ollama) · FinBERT · Higgs-Audio v3 (TTS) |
+| **Local inference (Dell GB10 Max)** | NVIDIA Nemotron (gateway agents) · Llama-3.3-70B (vLLM/Ollama) · FinBERT · Higgs-Audio v3 (TTS) |
 | **AI orchestration** | OpenAI-compatible APIs throughout · `llm_router` (cloud ↔ local swap via env) · grounded `/api/analyze_assets` on local **Nemotron**, SSE-streamed · gpt-4o + web-search model as fallback |
 | **Backend / reports** | Python · Flask · Jinja2 · yfinance · pandas / pandas-ta · Manim + FFmpeg · **PostgreSQL** (psycopg2) · SQLite · SSE streaming · SMTP |
 | **News pipeline** | GDELT · Yahoo/MarketWatch/BBC RSS · SEC EDGAR · feedparser · httpx |
@@ -151,7 +151,7 @@ tradingview/   Flask + Jinja "Bell" engine — reports, news intelligence, Manim
 ```sh
 cd tradingview
 python -m venv venv && source venv/bin/activate && pip install -r requirements.txt
-cp .env.example .env        # add OPENAI_API_KEY + SMTP_* (and point TTS/LLM at the DGX Spark)
+cp .env.example .env        # add OPENAI_API_KEY + SMTP_* (and point TTS/LLM at the Dell GB10 Max)
 python app.py               # then open /report, /opening-bell, /closing-bell
 python gen_report.py opening   # or render a live report straight to HTML
 ```
@@ -161,7 +161,7 @@ python gen_report.py opening   # or render a live report straight to HTML
 **Configuration** — all secrets come from a git-ignored `.env`; see
 [`tradingview/.env.example`](./tradingview/.env.example) for the keys (OpenAI, Polygon,
 `DATABASE_URL` for Postgres, SMTP, `REPORT_BASE_URL`, and the `TTS_BASE_URL`/`TTS_MODEL` overrides
-for a self-hosted DGX Spark voice). Every DB/AI dependency is lazy and guarded — the app still boots
+for a self-hosted Dell GB10 Max voice). Every DB/AI dependency is lazy and guarded — the app still boots
 if Postgres or a model endpoint is unreachable.
 
 ---
