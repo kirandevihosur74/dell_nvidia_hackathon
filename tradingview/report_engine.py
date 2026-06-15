@@ -1204,7 +1204,7 @@ def build_opening_bell_context(universe_raw=None, recipient=""):
 
     radar = fetch_radar()
 
-    # Local news-intelligence (Dell GB10 Max daemon -> SQLite); empty if not running.
+    # Local news-intelligence (Dell GB10 Max daemon -> Postgres); empty if not running.
     try:
         import intel_reader
         news_intel = intel_reader.get_top_stories(limit=6)
