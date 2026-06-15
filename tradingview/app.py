@@ -1,6 +1,6 @@
 #app.py
 
-from flask import Flask, render_template, jsonify, send_file, request, make_response, redirect, url_for, abort, Response, stream_with_context
+from flask import Flask, render_template, jsonify, send_file, request, make_response, redirect, url_for, abort, Response, stream_with_context, g, has_request_context
 from flask_cors import CORS
 import yfinance as yf
 import pandas as pd
@@ -85,14 +85,85 @@ _local_proxy = SimpleNamespace(
 )
 
 
-def text_client():
-    """Client for plain-text chat completions (local Ollama by default)."""
-    return _local_proxy if USE_LOCAL_LLM else client
+# --- OpenRouter provider (OpenAI-compatible; hosted Nemotron etc.) -----------
+# Lets a *locally deployed* backend serve the same Nemotron-class model from the
+# cloud instead of the GB10's Ollama. Mirror of our GB10 model:
+#   nvidia/nemotron-3-nano-30b-a3b  ==  hf.co/unsloth/Nemotron-3-Nano-30B-A3B-GGUF
+OPENROUTER_MODEL = os.getenv('OPENROUTER_MODEL', 'nvidia/nemotron-3-nano-30b-a3b')
+openrouter_client = OpenAI(
+    base_url=os.getenv('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1'),
+    api_key=os.getenv('OPENROUTER_API_KEY', ''),
+    default_headers={
+        'HTTP-Referer': os.getenv('OPENROUTER_REFERER',
+                                  'https://github.com/kirandevihosur74/dell_nvidia_hackathon'),
+        'X-Title': os.getenv('OPENROUTER_TITLE', 'OpenBell'),
+    },
+)
 
 
-def text_model(requested=None):
-    """Model name for plain-text chat completions."""
-    return LOCAL_TEXT_MODEL if USE_LOCAL_LLM else (requested or 'gpt-4o')
+def _openrouter_create(**kwargs):
+    # Ollama-only knobs (think / num_ctx) aren't valid on OpenRouter — drop them.
+    kwargs.pop('extra_body', None)
+    requested = kwargs.get('max_tokens')
+    if requested is None or requested < LOCAL_MAX_TOKENS:
+        kwargs['max_tokens'] = LOCAL_MAX_TOKENS
+    return openrouter_client.chat.completions.create(**kwargs)
+
+
+_openrouter_proxy = SimpleNamespace(
+    chat=SimpleNamespace(completions=SimpleNamespace(create=_openrouter_create))
+)
+
+# Default provider when a request doesn't specify one. Back-compat: if unset,
+# fall back to the old USE_LOCAL_LLM behaviour (local GB10 vs OpenAI).
+DEFAULT_LLM_PROVIDER = os.getenv('LLM_PROVIDER', '').strip().lower()
+
+
+def _normalize_provider(p):
+    p = (p or '').strip().lower()
+    if p in ('local', 'ollama', 'gb10', 'nemotron'):
+        return 'local'
+    if p in ('openrouter', 'or', 'router'):
+        return 'openrouter'
+    if p in ('openai', 'cloud', 'gpt', 'remote'):
+        return 'openai'
+    return ''
+
+
+def _request_provider():
+    """Per-request provider from the X-LLM-Provider header or a `provider` body
+    field, set by the before_request hook. Empty outside a request context."""
+    if not has_request_context():
+        return ''
+    return getattr(g, 'llm_provider', '') or ''
+
+
+def resolve_provider(requested=None):
+    for cand in (requested, _request_provider(), DEFAULT_LLM_PROVIDER):
+        norm = _normalize_provider(cand)
+        if norm:
+            return norm
+    return 'local' if USE_LOCAL_LLM else 'openai'
+
+
+def text_client(provider=None):
+    """Client for plain-text chat completions (GB10 local / OpenRouter / OpenAI)."""
+    p = resolve_provider(provider)
+    if p == 'openrouter':
+        return _openrouter_proxy
+    if p == 'openai':
+        return client
+    return _local_proxy
+
+
+def text_model(requested=None, provider=None):
+    """Model name for plain-text chat completions, per resolved provider."""
+    p = resolve_provider(provider)
+    if p == 'openrouter':
+        return OPENROUTER_MODEL
+    if p == 'openai':
+        return requested or 'gpt-4o'
+    return LOCAL_TEXT_MODEL
 
 # --- Grounded asset context (technical/fundamental/macro -> local model) -----
 # asset_context builds structured, model-ready context per symbol and formats a
@@ -118,6 +189,20 @@ POLYGON_API_KEY = os.getenv('POLYGON_API_KEY')
 
 app = Flask(__name__)
 CORS(app)
+
+
+@app.before_request
+def _capture_llm_provider():
+    """Let a client pick the inference backend per request: the mobile toggle
+    sends `X-LLM-Provider: local|openrouter|openai` (or a `provider` JSON field).
+    text_client()/text_model() read this via flask.g, so every text route honors
+    it without per-route plumbing."""
+    prov = request.headers.get('X-LLM-Provider')
+    if not prov and request.method in ('POST', 'PUT') and request.is_json:
+        body = request.get_json(silent=True) or {}
+        prov = body.get('provider')
+    if prov:
+        g.llm_provider = prov
 
 # ---------------------------------------------------------------------------
 # API logging — covers EVERY endpoint via Flask hooks, so you can watch data
