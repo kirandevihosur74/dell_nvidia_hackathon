@@ -3513,4 +3513,6 @@ def closing_bell_video():
 
 # Ensure this is at the end of your file
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True, threaded=True)
+    # Default 5001 matches the mobile client (openbell marketData.ts). Override
+    # with PORT if you need a different one.
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5001)), debug=True, threaded=True)
