@@ -44,8 +44,8 @@ Everything heavy is designed to run on an **NVIDIA DGX Spark** (or any local GPU
                                   │ WebSocket            │ OpenAI-compatible
                        ┌──────────▼─────────┐   ┌────────▼─────────────────┐
                        │   OpenBell (app)   │   │  Bell engine (Flask)     │
-                       │  agents · vision · │   │  report_engine · intel · │
-                       │  meetings · voice  │   │  Manim video · SMTP      │
+                       │  agents · vision · │   │  reports · analyze_assets│
+                       │  meetings · voice  │   │  intel · video · Postgres│
                        └────────────────────┘   └──────────┬───────────────┘
                                                            │
                                        ┌───────────────────┼────────────────────┐
@@ -99,13 +99,20 @@ deep analysis (tickers, magnitude, bull/bear) → **SQLite**. The report rendere
 (regime, Question of the Day, scoreboard, levels, movers, sources), voiced by **OpenAI-compatible
 TTS** — `tts-1` or self-hosted **Higgs-Audio v3** on the DGX Spark.
 
+**Grounded asset analysis (API):** `/api/analyze_assets` answers free-form questions about a ticker
+strictly from fetched data — declaring which **intents** it could and couldn't fulfil so the model
+can't hallucinate beyond the evidence. It runs on **local Nemotron** via the OpenAI-compatible
+router, **streams token-by-token over SSE** (`/api/analyze_assets/stream`), and every result is
+persisted to **PostgreSQL** (`asset_analyses`).
+
 **Delivery:** preview → download → **send via SMTP** (stdlib, no extra deps), plus a plain-text part
 and a "view in browser" link so nothing is lost if a client clips the email.
 
 **Stack:** Python 3.9+ · Flask 3 · Jinja2 · yfinance · pandas / pandas-ta · OpenAI SDK (gpt-4o,
 `gpt-4o-mini-search-preview` web search, tts-1) routed through an **`llm_router`** that also speaks
-to **Ollama / any OpenAI-compatible local endpoint** · Manim Community · FFmpeg · feedparser/httpx ·
-transformers (FinBERT) · SQLite · MongoDB (auth) · smtplib.
+to **Nemotron / Ollama / any OpenAI-compatible local endpoint** · Manim Community · FFmpeg ·
+feedparser/httpx · transformers (FinBERT) · **PostgreSQL** (`pg_store`) · SQLite (news intel) ·
+SSE streaming · smtplib.
 
 ---
 
@@ -114,8 +121,8 @@ transformers (FinBERT) · SQLite · MongoDB (auth) · smtplib.
 | Layer | What we use |
 |---|---|
 | **Local inference (DGX Spark)** | NVIDIA Nemotron (gateway agents) · Llama-3.3-70B (vLLM/Ollama) · FinBERT · Higgs-Audio v3 (TTS) |
-| **AI orchestration** | OpenAI-compatible APIs throughout · `llm_router` (cloud ↔ local swap via env) · gpt-4o + web-search model as fallback |
-| **Backend / reports** | Python · Flask · Jinja2 · yfinance · pandas / pandas-ta · Manim + FFmpeg · SQLite · MongoDB · SMTP |
+| **AI orchestration** | OpenAI-compatible APIs throughout · `llm_router` (cloud ↔ local swap via env) · grounded `/api/analyze_assets` on local **Nemotron**, SSE-streamed · gpt-4o + web-search model as fallback |
+| **Backend / reports** | Python · Flask · Jinja2 · yfinance · pandas / pandas-ta · Manim + FFmpeg · **PostgreSQL** (psycopg2) · SQLite · SSE streaming · SMTP |
 | **News pipeline** | GDELT · Yahoo/MarketWatch/BBC RSS · SEC EDGAR · feedparser · httpx |
 | **Mobile** | Expo · React Native · expo-router · NativeWind · Zustand · socket.io · vision-camera · expo-audio/speech · ed25519/AES-256-GCM |
 | **Mobile backend** | OpenClaw Gateway (WebSocket, Nemotron + PostgreSQL) · Stream.io inference relay · Recall.ai |
@@ -128,6 +135,7 @@ transformers (FinBERT) · SQLite · MongoDB (auth) · smtplib.
 openbell/      Expo/React Native app — OpenClaw client, inference, meetings, voice
 tradingview/   Flask + Jinja "Bell" engine — reports, news intelligence, Manim video
   ├─ report_engine.py          report context: data, regime, trading map, narrative, SMTP
+  ├─ pg_store.py               PostgreSQL store: users, subscriptions, asset analyses
   ├─ templates/                email-safe report templates (opening/closing/comparison)
   ├─ intel/ + intel_reader.py  news-intelligence SQLite contract + read-only reader
   ├─ video/                    Manim scene + make_video.py pipeline (OpenAI-compatible TTS)
@@ -151,9 +159,10 @@ python gen_report.py opening   # or render a live report straight to HTML
 **Mobile app** — `cd openbell && npm install && npx expo start` (pair to a running OpenClaw Gateway).
 
 **Configuration** — all secrets come from a git-ignored `.env`; see
-[`tradingview/.env.example`](./tradingview/.env.example) for the keys (OpenAI, Polygon, MongoDB,
-SMTP, `REPORT_BASE_URL`, and the `TTS_BASE_URL`/`TTS_MODEL` overrides for a self-hosted DGX Spark
-voice).
+[`tradingview/.env.example`](./tradingview/.env.example) for the keys (OpenAI, Polygon,
+`DATABASE_URL` for Postgres, SMTP, `REPORT_BASE_URL`, and the `TTS_BASE_URL`/`TTS_MODEL` overrides
+for a self-hosted DGX Spark voice). Every DB/AI dependency is lazy and guarded — the app still boots
+if Postgres or a model endpoint is unreachable.
 
 ---
 
