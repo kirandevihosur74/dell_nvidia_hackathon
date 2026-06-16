@@ -60,4 +60,4 @@ wcwidth==0.2.13
 webencodings==0.5.1
 websockets==12.0
 Werkzeug==3.0.6
-yfinance==0.2.4
+yfinance>=0.2.40  # 0.2.4 was too old to parse current Yahoo responses (history returned 0 rows)

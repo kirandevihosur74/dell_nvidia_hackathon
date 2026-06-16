@@ -174,6 +174,99 @@ function ApiUrlRow() {
   );
 }
 
+const INFERENCE_MODES = [
+  { id: "gb10" as const, label: "GB10 · Nemotron", desc: "Local model on the Dell GB10 (Ollama)" },
+  { id: "local_openrouter" as const, label: "Local · OpenRouter", desc: "Local backend → OpenRouter Nemotron mirror" },
+];
+
+function InferenceSection() {
+  const { theme } = useThemeStore();
+  const inferenceMode = useSettingsStore((s) => s.inferenceMode);
+  const gb10Url = useSettingsStore((s) => s.gb10Url);
+  const localUrl = useSettingsStore((s) => s.localUrl);
+  const setInferenceMode = useSettingsStore((s) => s.setInferenceMode);
+  const setGb10Url = useSettingsStore((s) => s.setGb10Url);
+  const setLocalUrl = useSettingsStore((s) => s.setLocalUrl);
+  const loadInferenceConfig = useSettingsStore((s) => s.loadInferenceConfig);
+
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState("");
+
+  useEffect(() => { loadInferenceConfig(); }, [loadInferenceConfig]);
+
+  const activeUrl = inferenceMode === "gb10" ? gb10Url : localUrl;
+
+  const handleSaveUrl = async () => {
+    const url = value.trim().replace(/\/+$/, "");
+    if (!url) return;
+    if (inferenceMode === "gb10") await setGb10Url(url);
+    else await setLocalUrl(url);
+    setEditing(false);
+  };
+
+  return (
+    <Section title="Inference Backend" icon={<Server size={14} color={theme.textTertiary} />}>
+      <View style={{ flexDirection: "row", padding: 12, gap: 8 }}>
+        {INFERENCE_MODES.map((m) => (
+          <TouchableOpacity
+            key={m.id}
+            onPress={() => { Haptics.selectionAsync(); setInferenceMode(m.id); }}
+            style={{
+              flex: 1,
+              paddingVertical: 10,
+              borderRadius: 8,
+              alignItems: "center",
+              backgroundColor: inferenceMode === m.id ? theme.primary : theme.background,
+            }}
+          >
+            <Text style={{ fontSize: 13, fontWeight: "600", textAlign: "center", color: inferenceMode === m.id ? "#FFFFFF" : theme.textSecondary }}>
+              {m.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      <Text style={{ fontSize: 11, color: theme.textTertiary, paddingHorizontal: 16, paddingBottom: 8 }}>
+        {INFERENCE_MODES.find((m) => m.id === inferenceMode)?.desc}
+      </Text>
+      {editing ? (
+        <View style={{ padding: 16, borderTopWidth: 0.5, borderTopColor: theme.border, gap: 8 }}>
+          <Text style={{ fontSize: 14, fontWeight: "500", color: theme.text }}>
+            {inferenceMode === "gb10" ? "GB10 backend URL" : "Local backend URL"}
+          </Text>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <TextInput
+              value={value}
+              onChangeText={setValue}
+              placeholder="http://192.168.1.x:5001"
+              placeholderTextColor={theme.textTertiary}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              style={{ flex: 1, backgroundColor: theme.background, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, color: theme.text }}
+            />
+            <TouchableOpacity onPress={handleSaveUrl} style={{ backgroundColor: theme.primary, paddingHorizontal: 14, borderRadius: 8, justifyContent: "center" }}>
+              <Text style={{ fontSize: 13, fontWeight: "600", color: "#FFFFFF" }}>Save</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={{ fontSize: 11, color: theme.textTertiary }}>
+            Use your machine's LAN IP from a phone. Port 5001 is the trading backend.
+          </Text>
+        </View>
+      ) : (
+        <Row
+          label="Backend URL"
+          description={activeUrl || "Not set"}
+          right={
+            <TouchableOpacity onPress={() => { setEditing(true); setValue(activeUrl); }}>
+              <Text style={{ fontSize: 13, color: theme.primary }}>Change</Text>
+            </TouchableOpacity>
+          }
+        />
+      )}
+    </Section>
+  );
+}
+
 function NerveUrlRow() {
   const { theme } = useThemeStore();
   const { nerveUrl, setNerveUrl } = useSettingsStore();
@@ -328,6 +421,9 @@ export default function SettingsScreen() {
           <ApiKeyRow label="OpenAI API Key" field="openai_api_key" />
           <ApiKeyRow label="ElevenLabs API Key" field="elevenlabs_api_key" />
         </Section>
+
+        {/* Inference Backend — GB10 (local Nemotron) vs local backend + OpenRouter */}
+        <InferenceSection />
 
         {/* AI Provider */}
         <Section title="AI Provider" icon={<Cpu size={14} color={theme.textTertiary} />}>

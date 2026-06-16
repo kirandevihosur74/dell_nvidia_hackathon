@@ -1,6 +1,6 @@
 #app.py
 
-from flask import Flask, render_template, jsonify, send_file, request, make_response, redirect, url_for, abort, Response, stream_with_context
+from flask import Flask, render_template, jsonify, send_file, request, make_response, redirect, url_for, abort, Response, stream_with_context, g, has_request_context
 from flask_cors import CORS
 import yfinance as yf
 import pandas as pd
@@ -85,14 +85,85 @@ _local_proxy = SimpleNamespace(
 )
 
 
-def text_client():
-    """Client for plain-text chat completions (local Ollama by default)."""
-    return _local_proxy if USE_LOCAL_LLM else client
+# --- OpenRouter provider (OpenAI-compatible; hosted Nemotron etc.) -----------
+# Lets a *locally deployed* backend serve the same Nemotron-class model from the
+# cloud instead of the GB10's Ollama. Mirror of our GB10 model:
+#   nvidia/nemotron-3-nano-30b-a3b  ==  hf.co/unsloth/Nemotron-3-Nano-30B-A3B-GGUF
+OPENROUTER_MODEL = os.getenv('OPENROUTER_MODEL', 'nvidia/nemotron-3-nano-30b-a3b')
+openrouter_client = OpenAI(
+    base_url=os.getenv('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1'),
+    api_key=os.getenv('OPENROUTER_API_KEY', ''),
+    default_headers={
+        'HTTP-Referer': os.getenv('OPENROUTER_REFERER',
+                                  'https://github.com/kirandevihosur74/dell_nvidia_hackathon'),
+        'X-Title': os.getenv('OPENROUTER_TITLE', 'OpenBell'),
+    },
+)
 
 
-def text_model(requested=None):
-    """Model name for plain-text chat completions."""
-    return LOCAL_TEXT_MODEL if USE_LOCAL_LLM else (requested or 'gpt-4o')
+def _openrouter_create(**kwargs):
+    # Ollama-only knobs (think / num_ctx) aren't valid on OpenRouter — drop them.
+    kwargs.pop('extra_body', None)
+    requested = kwargs.get('max_tokens')
+    if requested is None or requested < LOCAL_MAX_TOKENS:
+        kwargs['max_tokens'] = LOCAL_MAX_TOKENS
+    return openrouter_client.chat.completions.create(**kwargs)
+
+
+_openrouter_proxy = SimpleNamespace(
+    chat=SimpleNamespace(completions=SimpleNamespace(create=_openrouter_create))
+)
+
+# Default provider when a request doesn't specify one. Back-compat: if unset,
+# fall back to the old USE_LOCAL_LLM behaviour (local GB10 vs OpenAI).
+DEFAULT_LLM_PROVIDER = os.getenv('LLM_PROVIDER', '').strip().lower()
+
+
+def _normalize_provider(p):
+    p = (p or '').strip().lower()
+    if p in ('local', 'ollama', 'gb10', 'nemotron'):
+        return 'local'
+    if p in ('openrouter', 'or', 'router'):
+        return 'openrouter'
+    if p in ('openai', 'cloud', 'gpt', 'remote'):
+        return 'openai'
+    return ''
+
+
+def _request_provider():
+    """Per-request provider from the X-LLM-Provider header or a `provider` body
+    field, set by the before_request hook. Empty outside a request context."""
+    if not has_request_context():
+        return ''
+    return getattr(g, 'llm_provider', '') or ''
+
+
+def resolve_provider(requested=None):
+    for cand in (requested, _request_provider(), DEFAULT_LLM_PROVIDER):
+        norm = _normalize_provider(cand)
+        if norm:
+            return norm
+    return 'local' if USE_LOCAL_LLM else 'openai'
+
+
+def text_client(provider=None):
+    """Client for plain-text chat completions (GB10 local / OpenRouter / OpenAI)."""
+    p = resolve_provider(provider)
+    if p == 'openrouter':
+        return _openrouter_proxy
+    if p == 'openai':
+        return client
+    return _local_proxy
+
+
+def text_model(requested=None, provider=None):
+    """Model name for plain-text chat completions, per resolved provider."""
+    p = resolve_provider(provider)
+    if p == 'openrouter':
+        return OPENROUTER_MODEL
+    if p == 'openai':
+        return requested or 'gpt-4o'
+    return LOCAL_TEXT_MODEL
 
 # --- Grounded asset context (technical/fundamental/macro -> local model) -----
 # asset_context builds structured, model-ready context per symbol and formats a
@@ -118,6 +189,20 @@ POLYGON_API_KEY = os.getenv('POLYGON_API_KEY')
 
 app = Flask(__name__)
 CORS(app)
+
+
+@app.before_request
+def _capture_llm_provider():
+    """Let a client pick the inference backend per request: the mobile toggle
+    sends `X-LLM-Provider: local|openrouter|openai` (or a `provider` JSON field).
+    text_client()/text_model() read this via flask.g, so every text route honors
+    it without per-route plumbing."""
+    prov = request.headers.get('X-LLM-Provider')
+    if not prov and request.method in ('POST', 'PUT') and request.is_json:
+        body = request.get_json(silent=True) or {}
+        prov = body.get('provider')
+    if prov:
+        g.llm_provider = prov
 
 # ---------------------------------------------------------------------------
 # API logging — covers EVERY endpoint via Flask hooks, so you can watch data
@@ -359,67 +444,93 @@ def get_top_news(stock):
         ]}), 200  # Return 200 with default data
 
 
+# --- market_data hardening (avoid Yahoo 429s) --------------------------------
+# Reuse one Chrome-impersonating session (curl_cffi) so we present a consistent,
+# bot-detection-resistant TLS fingerprint, and cache results briefly so repeated
+# "Run" taps / multiple symbols don't hammer Yahoo.
+_md_session = curl_requests.Session(impersonate="chrome")
+_md_cache = {}
+_md_cache_lock = threading.Lock()
+MARKET_DATA_TTL = 60  # seconds
+
+
 @app.route('/api/market_data/<symbol>', methods=['GET'])
 def get_market_data(symbol):
     try:
-        # Import yfinance 
         import yfinance as yf
         from datetime import datetime
-        
-        # Handle potential errors in the symbol
+
         if not symbol or len(symbol) < 1:
             return jsonify({"error": "Invalid symbol provided"}), 400
-            
-        # Fetch the ticker data
-        ticker = yf.Ticker(symbol)
-        
-        # Get current market data
-        ticker_info = ticker.info
-        
-        # Get recent history for calculating change
+
+        symbol = symbol.upper()
+
+        # Serve a recent cached value if we have one (collapses bursts).
+        now = time.time()
+        with _md_cache_lock:
+            cached = _md_cache.get(symbol)
+            if cached and (now - cached["_ts"]) < MARKET_DATA_TTL:
+                return jsonify(cached["data"])
+
+        # Fetch over the shared impersonated session. Derive everything from
+        # history(2d) + fast_info, avoiding the heavily-throttled ticker.info
+        # (which returns None when rate-limited and used to crash with NoneType).
+        ticker = yf.Ticker(symbol, session=_md_session)
         hist = ticker.history(period="2d")
-        
-        # If we have at least 2 days of data, calculate change
+
+        if hist is None or hist.empty:
+            return jsonify({"error": f"No market data available for {symbol}"}), 404
+
         if len(hist) >= 2:
             current_price = hist['Close'].iloc[-1]
             previous_price = hist['Close'].iloc[-2]
-            change = current_price - previous_price
-            change_percent = (change / previous_price) * 100
         else:
-            # Fallback if we don't have enough historical data
-            current_price = ticker_info.get('currentPrice', ticker_info.get('regularMarketPrice', 0))
-            previous_price = ticker_info.get('previousClose', current_price)
-            change = current_price - previous_price
-            change_percent = (change / previous_price) * 100 if previous_price else 0
-        
-        # Get the latest volume
-        volume = hist['Volume'].iloc[-1] if not hist['Volume'].empty else ticker_info.get('volume', 0)
-        
-        # Build response data. Cast numpy scalars (from pandas .iloc) to native
-        # Python types so Flask's jsonify can serialize them.
+            current_price = hist['Close'].iloc[-1]
+            previous_price = current_price
+        change = current_price - previous_price
+        change_percent = (change / previous_price) * 100 if previous_price else 0
+        volume = hist['Volume'].iloc[-1] if not hist['Volume'].empty else 0
+
+        def _fast(attr, default=0):
+            try:
+                val = getattr(ticker.fast_info, attr)
+                return val if val is not None else default
+            except Exception:
+                return default
+
         market_data = {
             "symbol": symbol,
             "currentPrice": float(current_price),
             "previousClose": float(previous_price),
             "change": float(change),
             "changePercent": float(change_percent),
-            "volume": int(volume) if volume is not None else 0,
+            "volume": int(volume) if volume == volume else 0,  # NaN-safe
             "high": float(hist['High'].iloc[-1]) if not hist['High'].empty else 0,
             "low": float(hist['Low'].iloc[-1]) if not hist['Low'].empty else 0,
             "open": float(hist['Open'].iloc[-1]) if not hist['Open'].empty else 0,
-            "marketCap": ticker_info.get('marketCap', 0),
-            "peRatio": ticker_info.get('trailingPE', 0),
-            "dividend": ticker_info.get('dividendRate', 0),
-            "yield": ticker_info.get('dividendYield', 0),
+            "marketCap": _fast("market_cap"),
+            "peRatio": 0,   # not on fast_info; skip the throttled .info call
+            "dividend": 0,
+            "yield": 0,
             "timestamp": datetime.now().isoformat()
         }
-        
-        # Return the market data
+
+        with _md_cache_lock:
+            _md_cache[symbol] = {"_ts": now, "data": market_data}
+
         return jsonify(market_data)
-        
+
     except Exception as e:
-        print(f"Error fetching market data for {symbol}: {str(e)}")
-        return jsonify({"error": f"Failed to fetch market data: {str(e)}"}), 500
+        msg = str(e)
+        print(f"Error fetching market data for {symbol}: {msg}")
+        # On a rate-limit, serve the last good value if we have one.
+        if "Too Many Requests" in msg or "Rate limited" in msg:
+            with _md_cache_lock:
+                stale = _md_cache.get(symbol.upper())
+            if stale:
+                return jsonify(stale["data"])
+            return jsonify({"error": "Rate limited by Yahoo. Try again shortly."}), 429
+        return jsonify({"error": f"Failed to fetch market data: {msg}"}), 500
     
 @app.route('/api/chatbot', methods=['POST'])
 def chatbot():
@@ -3428,4 +3539,6 @@ def closing_bell_video():
 
 # Ensure this is at the end of your file
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True, threaded=True)
+    # Default 5001 matches the mobile client (openbell marketData.ts). Override
+    # with PORT if you need a different one.
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5001)), debug=True, threaded=True)
