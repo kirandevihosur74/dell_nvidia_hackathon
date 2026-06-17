@@ -16,13 +16,18 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 const TRADING_PORT = "5001";
 
 // Persisted overrides driven by the Settings "Inference Backend" toggle:
-//   trading_api_base_url  -> which backend (GB10 vs locally-deployed)
+//   trading_api_base_url  -> which backend (GB10, local-deploy, or Fintellect cloud)
 //   trading_llm_provider  -> which model that backend should use (local Nemotron
-//                            on the GB10, or the OpenRouter-hosted mirror)
+//                            on the GB10, the OpenRouter mirror, or OpenAI)
+// All three backends run the same Flask app, so they share one API shape
+// (flat /api/market_data, /api/symbols, /api/analyze_assets).
 const BASE_KEY = "trading_api_base_url";
 const PROVIDER_KEY = "trading_llm_provider";
 
 export type TradingProvider = "local" | "openrouter" | "openai";
+
+// Shared production Fintellect backend (same host the Fintellect app uses).
+export const FINTELLECT_CLOUD_URL = "https://app.optimumvertex.io";
 
 let _baseOverride: string | null = null;
 let _provider: TradingProvider | null = null;

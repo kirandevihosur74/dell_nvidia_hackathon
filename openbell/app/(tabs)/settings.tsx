@@ -177,6 +177,7 @@ function ApiUrlRow() {
 const INFERENCE_MODES = [
   { id: "gb10" as const, label: "GB10 · Nemotron", desc: "Local model on the Dell GB10 (Ollama)" },
   { id: "local_openrouter" as const, label: "Local · OpenRouter", desc: "Local backend → OpenRouter Nemotron mirror" },
+  { id: "fintellect" as const, label: "Fintellect Cloud", desc: "Shared Fintellect cloud backend (OpenRouter Nemotron) — market data + analysis" },
 ];
 
 function InferenceSection() {
@@ -184,9 +185,11 @@ function InferenceSection() {
   const inferenceMode = useSettingsStore((s) => s.inferenceMode);
   const gb10Url = useSettingsStore((s) => s.gb10Url);
   const localUrl = useSettingsStore((s) => s.localUrl);
+  const fintellectUrl = useSettingsStore((s) => s.fintellectUrl);
   const setInferenceMode = useSettingsStore((s) => s.setInferenceMode);
   const setGb10Url = useSettingsStore((s) => s.setGb10Url);
   const setLocalUrl = useSettingsStore((s) => s.setLocalUrl);
+  const setFintellectUrl = useSettingsStore((s) => s.setFintellectUrl);
   const loadInferenceConfig = useSettingsStore((s) => s.loadInferenceConfig);
 
   const [editing, setEditing] = useState(false);
@@ -194,12 +197,14 @@ function InferenceSection() {
 
   useEffect(() => { loadInferenceConfig(); }, [loadInferenceConfig]);
 
-  const activeUrl = inferenceMode === "gb10" ? gb10Url : localUrl;
+  const activeUrl =
+    inferenceMode === "gb10" ? gb10Url : inferenceMode === "fintellect" ? fintellectUrl : localUrl;
 
   const handleSaveUrl = async () => {
     const url = value.trim().replace(/\/+$/, "");
     if (!url) return;
     if (inferenceMode === "gb10") await setGb10Url(url);
+    else if (inferenceMode === "fintellect") await setFintellectUrl(url);
     else await setLocalUrl(url);
     setEditing(false);
   };
@@ -231,7 +236,11 @@ function InferenceSection() {
       {editing ? (
         <View style={{ padding: 16, borderTopWidth: 0.5, borderTopColor: theme.border, gap: 8 }}>
           <Text style={{ fontSize: 14, fontWeight: "500", color: theme.text }}>
-            {inferenceMode === "gb10" ? "GB10 backend URL" : "Local backend URL"}
+            {inferenceMode === "gb10"
+              ? "GB10 backend URL"
+              : inferenceMode === "fintellect"
+                ? "Fintellect cloud URL"
+                : "Local backend URL"}
           </Text>
           <View style={{ flexDirection: "row", gap: 8 }}>
             <TextInput

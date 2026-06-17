@@ -1,7 +1,11 @@
 import { create } from "zustand";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { LLMProvider } from "@/types/settings";
-import { setTradingBaseUrl, setTradingProvider } from "@/services/marketData";
+import {
+  setTradingBaseUrl,
+  setTradingProvider,
+  FINTELLECT_CLOUD_URL,
+} from "@/services/marketData";
 
 export type VoiceProfileOption =
   | "auto"
@@ -10,20 +14,35 @@ export type VoiceProfileOption =
 
 const NERVE_URL_KEY = "openclaw_nerve_url";
 
-// Inference backend for grounded asset analysis:
+// Backend the app talks to for market data + grounded asset analysis:
 //   "gb10"             -> existing GB10 deployment, local Nemotron via Ollama
 //   "local_openrouter" -> a locally deployed backend using the OpenRouter mirror
-export type InferenceMode = "gb10" | "local_openrouter";
+//   "fintellect"       -> the shared Fintellect cloud backend (market data only)
+export type InferenceMode = "gb10" | "local_openrouter" | "fintellect";
 
 const INFERENCE_MODE_KEY = "inference_mode";
 const GB10_URL_KEY = "inference_gb10_url";
 const LOCAL_URL_KEY = "inference_local_url";
+const FINTELLECT_URL_KEY = "inference_fintellect_url";
 
 const DEFAULT_GB10_URL = "http://localhost:5001";
 const DEFAULT_LOCAL_URL = "http://localhost:5001";
+const DEFAULT_FINTELLECT_URL = FINTELLECT_CLOUD_URL;
 
+// Which inference provider each backend serves analysis with:
+//   gb10            -> local Nemotron (Ollama)
+//   local_openrouter / fintellect -> OpenRouter Nemotron mirror (no local GPU)
 function providerForMode(mode: InferenceMode): "local" | "openrouter" {
   return mode === "gb10" ? "local" : "openrouter";
+}
+
+function urlForMode(
+  mode: InferenceMode,
+  urls: { gb10Url: string; localUrl: string; fintellectUrl: string }
+): string {
+  if (mode === "gb10") return urls.gb10Url;
+  if (mode === "local_openrouter") return urls.localUrl;
+  return urls.fintellectUrl;
 }
 
 interface SettingsState {
@@ -40,6 +59,7 @@ interface SettingsState {
   inferenceMode: InferenceMode;
   gb10Url: string;
   localUrl: string;
+  fintellectUrl: string;
 
   setDefaultLlm: (provider: LLMProvider) => void;
   setVoiceInput: (enabled: boolean) => void;
@@ -55,6 +75,7 @@ interface SettingsState {
   setInferenceMode: (mode: InferenceMode) => Promise<void>;
   setGb10Url: (url: string) => Promise<void>;
   setLocalUrl: (url: string) => Promise<void>;
+  setFintellectUrl: (url: string) => Promise<void>;
   loadInferenceConfig: () => Promise<void>;
 }
 
@@ -72,6 +93,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   inferenceMode: "gb10",
   gb10Url: DEFAULT_GB10_URL,
   localUrl: DEFAULT_LOCAL_URL,
+  fintellectUrl: DEFAULT_FINTELLECT_URL,
 
   setDefaultLlm: (provider) => set({ defaultLlm: provider }),
   setVoiceInput: (enabled) => set({ voiceInputEnabled: enabled }),
@@ -96,8 +118,8 @@ export const useSettingsStore = create<SettingsState>((set) => ({
 
   setInferenceMode: async (mode) => {
     set({ inferenceMode: mode });
-    const { gb10Url, localUrl } = useSettingsStore.getState();
-    const url = mode === "gb10" ? gb10Url : localUrl;
+    const { gb10Url, localUrl, fintellectUrl } = useSettingsStore.getState();
+    const url = urlForMode(mode, { gb10Url, localUrl, fintellectUrl });
     await AsyncStorage.setItem(INFERENCE_MODE_KEY, mode);
     // Point the trading service at the right backend + tell it which model to use.
     await setTradingBaseUrl(url);
@@ -122,19 +144,30 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     }
   },
 
+  setFintellectUrl: async (url) => {
+    const clean = url.replace(/\/+$/, "");
+    set({ fintellectUrl: clean });
+    await AsyncStorage.setItem(FINTELLECT_URL_KEY, clean);
+    if (useSettingsStore.getState().inferenceMode === "fintellect") {
+      await setTradingBaseUrl(clean);
+    }
+  },
+
   loadInferenceConfig: async () => {
     try {
-      const [mode, gb10, local] = await Promise.all([
+      const [mode, gb10, local, fintellect] = await Promise.all([
         AsyncStorage.getItem(INFERENCE_MODE_KEY),
         AsyncStorage.getItem(GB10_URL_KEY),
         AsyncStorage.getItem(LOCAL_URL_KEY),
+        AsyncStorage.getItem(FINTELLECT_URL_KEY),
       ]);
       const m = (mode as InferenceMode) || "gb10";
       const gb10Url = gb10 || DEFAULT_GB10_URL;
       const localUrl = local || DEFAULT_LOCAL_URL;
-      set({ inferenceMode: m, gb10Url, localUrl });
+      const fintellectUrl = fintellect || DEFAULT_FINTELLECT_URL;
+      set({ inferenceMode: m, gb10Url, localUrl, fintellectUrl });
       // Re-apply persisted selection to the trading service on app start.
-      await setTradingBaseUrl(m === "gb10" ? gb10Url : localUrl);
+      await setTradingBaseUrl(urlForMode(m, { gb10Url, localUrl, fintellectUrl }));
       await setTradingProvider(providerForMode(m));
     } catch {
       // ignore
